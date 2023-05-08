@@ -15,10 +15,10 @@ header-includes:
   \geometry{
    a4paper,
    total={195mm,280mm},
-   left=10mm,
-   right=10mm,
-   top=15mm,
-   bottom=15mm,
+   left=15mm,
+   right=15mm,
+   top=20mm,
+   bottom=20mm,
    }
   \usepackage{xcolor}
   \usepackage[skins]{tcolorbox}
@@ -125,7 +125,7 @@ header-includes:
 ```{r, eval = FALSE, include = FALSE}
 # picale aquí para renderizar
 rmarkdown::render("final-project.rmd",
-    output_file = "final-project.pdf",
+    output_file = "docs/final-project.pdf",
     clean = TRUE
 )
 ```
@@ -144,7 +144,28 @@ library(gridExtra)
 
 # Introducción
 
-Descripción del problema, contexto y objetivos a resolver
+La Comisión Nacional Bancaria y de Valores (CNBV) solicita a los bancos que demuestren su solvencia a través de diferentes ejercicios de estrés de sus productos. 
+Uno de estos ejercicios es el de suficiencia de capital, el cual consiste en proyectar el comportamiento del balance y estado de resultados a 2 años, 
+considerando un escenario base y otro estresado proporcionado por la CNBV.
+
+Actualmente, se utilizan métodos estadísticos convencionales como regresiones y SARIMAX para realizar estas proyecciones, 
+pero las instituciones financieras buscan una metodología más conservadora y auditable que permita interpretar el impacto de 
+las variables macroeconómicas en cada producto. 
+El objetivo general de este proyecto es desarrollar un enfoque bayesiano para el análisis de la solvencia de un banco, específicamente en el ámbito de la banca minorista
+a través de la modelación de series de tiempo de sus productos financieros. Para ello, se utilizarán modelos lineales dinámicos (DLMs), 
+los cuales permiten modelar y predecir la evolución de una serie de tiempo a lo largo del tiempo y en presencia de ruido aleatorio. 
+En particular, se pretende analizar el comportamiento de los productos tarjetas de crédito (TDC), hipotecaria y PyME, 
+considerando diferentes variables macroeconómicas, para la evaluación de la solvencia bancaria.
+
+Los objetivos específicos del proyecto son:
+
+- Identificar las variables macroeconómicas relevantes que afectan la solvencia de los productos financieros de la banca de _retail_.
+- Modelar y predecir la evolución de las series de tiempo de los productos TDC, hipotecaria y PyME a través de modelos lineales dinámicos.
+- Comparar el desempeño predictivo de los modelos DLMs con los métodos estadísticos convencionales (regresiones y SARIMAX).
+- Evaluar la solvencia del banco de retail bajo diferentes escenarios macroeconómicos, incluyendo un escenario estresado.
+
+Este trabajo podría ser de utilidad para que, junto con un grupo de expertos, se propongan recomendaciones prácticas 
+a la banca de _retail_ para mejorar su solvencia frente a los escenarios macroeconómicos adversos.
 
 
 \newpage 
