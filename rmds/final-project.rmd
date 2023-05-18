@@ -8,7 +8,7 @@ author:
 - David Damián Arbeu
 - Jorge García
 - Aline Lizeth
-bibliography: utilities/referencias.bib
+bibliography: ../utilities/referencias.bib
 nocite: '@*'
 header-includes:
   \usepackage{geometry}
@@ -124,55 +124,208 @@ header-includes:
 
 ```{r, eval = FALSE, include = FALSE}
 # picale aquí para renderizar
-rmarkdown::render("final-project.rmd",
-    output_file = "docs/final-project.pdf",
+rmarkdown::render("./rmds/final-project.rmd",
+    output_file = "../docs/final-project.pdf",
     clean = TRUE
 )
 ```
 
-```{r echo=FALSE, message=FALSE, warning=FALSE}
-# Librerías que usaremos
-library(patchwork)
-library(tidyverse)
-library(kableExtra)
-library(R2OpenBUGS)
-library(R2jags)
-library(gridExtra)
+```{r echo=FALSE}
+source('../utilities/utils.r')
+```
+
+```{r, echo=FALSE}
+#DATOS
+datos_cartera <- read_excel("../data/carteraP_2022.xlsx", sheet = 1, col_names = TRUE, col_types = NULL, na = "", skip = 0)
+datos_captacion <- read_excel("../data/captacionP_2022.xlsx", sheet = 1, col_names = TRUE, col_types = NULL, na = "", skip = 0)
+
+#Variables explicativas
+variables_m <- read.table("../data/var_baseM_2022.txt", sep = "\t", header = TRUE)
+variables_t <- read.table("../data/var_baseT_2022.txt", sep = "\t", header = TRUE)
 ```
 
 \newpage 
 
 # Introducción
 
-La Comisión Nacional Bancaria y de Valores (CNBV) solicita a los bancos que demuestren su solvencia a través de diferentes ejercicios de estrés de sus productos. 
-Uno de estos ejercicios es el de suficiencia de capital, el cual consiste en proyectar el comportamiento del balance y estado de resultados a 2 años, 
-considerando un escenario base y otro estresado proporcionado por la CNBV.
+A lo largo de la historia, el sistema financiero mexicano ha enfrentado diversas crisis que han llevado a la búsqueda de 
+normas que promuevan un sistema saludable sin perjudicar a los individuos que utilizan los bancos como medios de inversión o ahorro. 
+Por esta razón, resulta crucial examinar las reglas implementadas por la Comisión Nacional Bancaria y de Valores (CNBV) 
+en cada una de las instituciones bancarias que operan en nuestro país.
 
-Actualmente, se utilizan métodos estadísticos convencionales como regresiones y SARIMAX para realizar estas proyecciones, 
-pero las instituciones financieras buscan una metodología más conservadora y auditable que permita interpretar el impacto de 
-las variables macroeconómicas en cada producto. 
-El objetivo general de este proyecto es desarrollar un enfoque bayesiano para el análisis de la solvencia de un banco, específicamente en el ámbito de la banca minorista
-a través de la modelación de series de tiempo de sus productos financieros. Para ello, se utilizarán modelos lineales dinámicos (DLMs), 
+
+La CNBV requiere que los bancos demuestren su solvencia mediante diversos ejercicios de estrés aplicados a sus productos. 
+Uno de estos ejercicios es la prueba de suficiencia de capital, que implica proyectar el comportamiento del balance y
+ el estado de resultados durante un período de 2 años, considerando tanto un escenario base como 
+uno estresado proporcionado por la CNBV.
+
+
+El objetivo general de este proyecto es explorar, desde un enfoque bayesiano, el análisis de la solvencia de un banco, 
+específicamente en el ámbito de la banca minorista a través de la modelación de series de tiempo de sus productos financieros. 
+
+Para ello, se utilizarán modelos lineales dinámicos (DLMs), 
 los cuales permiten modelar y predecir la evolución de una serie de tiempo a lo largo del tiempo y en presencia de ruido aleatorio. 
 En particular, se pretende analizar el comportamiento de los productos tarjetas de crédito (TDC), hipotecaria y PyME, 
-considerando diferentes variables macroeconómicas, para la evaluación de la solvencia bancaria.
+
 
 Los objetivos específicos del proyecto son:
 
+- Analizar tres productos de la cartera minorista: tarjeta de crédito (TDC), hipotecario y PyMES; en función 
+de diferentes variables macroeconómicas, para la evaluación de la solvencia bancaria.
 - Identificar las variables macroeconómicas relevantes que afectan la solvencia de los productos financieros de la banca de _retail_.
 - Modelar y predecir la evolución de las series de tiempo de los productos TDC, hipotecaria y PyME a través de modelos lineales dinámicos.
-- Comparar el desempeño predictivo de los modelos DLMs con los métodos estadísticos convencionales (regresiones y SARIMAX).
 - Evaluar la solvencia del banco de retail bajo diferentes escenarios macroeconómicos, incluyendo un escenario estresado.
 
 Este trabajo podría ser de utilidad para que, junto con un grupo de expertos, se propongan recomendaciones prácticas 
 a la banca de _retail_ para mejorar su solvencia frente a los escenarios macroeconómicos adversos.
 
-
 \newpage 
 
 # Descripción de la información
 
-Describan cada una de sus variables, escalas de medición, y presenten un análisis exploratorio de datos
+Dado el contexto del problema descrito en la sección anterior es momento de introducir 
+al lector a la descripción de los datos con los que se cuenta.
+
+Tenemos dos conjuntos de datos, 
+por un lado los que refieren a los montos de captación y de cartera el cual
+fungirá en este trabajo como variable objetivo. 
+
+También, se cuenta con tres aperturas y cada una de ellas a su vez esta dividida en distintos segmentos. 
+La siguientes tablas muestran el detalle de cada una:
+
+```{r table1, echo=FALSE, message=FALSE, warnings=FALSE, results='asis'}
+panderOptions('table.split.table', Inf)
+set.caption("Cartera Mayorista")
+my.data <- "
+  #        | Segmento           | Productos
+  01      | Empresas MN | Tradicional, Arrendamiento
+  02      | Gobierno MN y ME      |   NA 
+  03 | Corporativa MN      |    Global Lending, Global Transactional, Mercados 
+  04 | Promotor MN      |    Puente, Arrendamiento
+  05 | Empresas ME      |    Tradicional, Arrendamiento
+  06 | Corporativa ME      |    Global Lending, Global Transactional"
+df <- read.delim(textConnection(my.data),header=FALSE,sep="|",strip.white=TRUE,stringsAsFactors=FALSE)
+names(df) <- unname(as.list(df[1,])) # put headers on
+df <- df[-1,] # remove first row
+row.names(df)<-NULL
+pander(df, style = 'rmarkdown')
+```
+
+```{r table2, echo=FALSE, message=FALSE, warnings=FALSE, results='asis'}
+panderOptions('table.split.table', Inf)
+set.caption("Cartera Minorista")
+my.data <- "
+  # | Productos
+  01 | Consumo Revolvente (TDC)
+  02 | Consumo No Revolvente (Nómina / PPI) 
+  03 | Consumo No Revolvente Autos
+  04 | Hipotecaria
+  05 | PyME"
+df <- read.delim(textConnection(my.data),header=FALSE,sep="|",strip.white=TRUE,stringsAsFactors=FALSE)
+names(df) <- unname(as.list(df[1,])) # put headers on
+df <- df[-1,] # remove first row
+row.names(df)<-NULL
+pander(df, style = 'rmarkdown')
+```
+
+
+```{r table3, echo=FALSE, message=FALSE, warnings=FALSE, results='asis'}
+panderOptions('table.split.table', Inf)
+set.caption("Cartera Mayorista")
+my.data <- "
+  #        | Producto           | Segmento
+  01      | Vista | Banca Red Comercial, Banca Patrimonial Comercial, Banca Empresas, Banca Gobierno, Banca Corporativa
+  02      | Ahorro      |   Banca Red Comercial 
+  03 | Plazo MN      |    Banca Red Comercial, Banca Patrimonial Comercial, Banca Mayorista
+  04 | Vista ME      |    Banca Minorista, Banca Mayorista
+  05 | Plazo ME      |    Banca Minorista, Banca Mayorista"
+df <- read.delim(textConnection(my.data),header=FALSE,sep="|",strip.white=TRUE,stringsAsFactors=FALSE)
+names(df) <- unname(as.list(df[1,])) # put headers on
+df <- df[-1,] # remove first row
+row.names(df)<-NULL
+pander(df, style = 'rmarkdown')
+```
+
+La idea principal de analizar estos tres productos se basa en dos aspectos fundamentales. 
+En primer lugar, las pequeñas y medianas empresas (PyMES) desempeñan un papel crucial en la generación
+del 72% del empleo y el 52% del Producto Interno Bruto (PIB) [1]. Por otro lado, las tarjetas de crédito (TDC) 
+y la cartera hipotecaria son dos productos de gran importancia e influencia en el ámbito bancario, 
+al punto de que el sector inmobiliario fue el desencadenante de la crisis del 2008. 
+
+\newpage 
+
+## Análisis exploratorio
+
+Es importante tener en cuenta que, al analizar series monetarias, es común realizar ajustes por inflación 
+a través de un proceso llamado deflactación. Según [2], la deflactación de una serie monetaria es crucial, 
+ya que permite realizar comparaciones precisas entre cantidades monetarias de diferentes años, 
+lo que nos ayuda a detectar los cambios en términos reales. En la práctica, es común llevar a cabo este ajuste 
+utilizando el Índice Nacional de Precios al Consumidor (INPC) [agregar referencia].
+
+A continuación, se presentan gráficas que muestran la evolución de los productos que analizaremos
+ desde el año 2007. 
+
+```{r, echo=FALSE}
+# global data
+datos_cartera_mod <- datos_cartera |> select(Fecha, PyME, TDC, Hipotecaria)
+
+# por cartera
+PyME_deflactada <- deflactar_serie(datos_cartera_mod$PyME, variables_m$INPC)
+TDC_deflactada <- deflactar_serie(datos_cartera_mod$TDC, variables_m$INPC)
+Hipotecaria_deflactada <- deflactar_serie(datos_cartera_mod$Hipotecaria, variables_m$INPC)
+
+# mutar series deflactadas
+
+datos_cartera_mod <- datos_cartera_mod |> mutate(PyME_deflactada = PyME_deflactada,
+                     TDC_deflactada = TDC_deflactada,
+                     Hipotecaria_deflactada = Hipotecaria_deflactada)
+
+# cambia a formato largo y asigna etiqueta de cartera
+datos_cartera_melted <- datos_cartera_mod |> 
+pivot_longer(cols=2:7, names_to='tipo', values_to = 'value') |>
+mutate(tipo2 = case_when(
+    tipo == "PyME" | tipo == "PyME_deflactada" ~ "PyME",
+    tipo == "TDC" | tipo == "TDC_deflactada" ~ "TDC",
+    tipo == "Hipotecaria" | tipo == "Hipotecaria_deflactada" ~ "Hipotecaria",
+    TRUE ~ tipo
+  ),
+  color= ifelse(endsWith(tipo, "deflactada"), "deflactada", "normal"))
+
+```
+
+```{r echo=FALSE, message = FALSE, warning=FALSE, fig.align='center',fig.width=9, fig.height=7,fig.cap="Comportamiento de las diferentes carteras desde 2007."}
+datos_cartera_melted %>%
+  ggplot(aes(x = Fecha, y = value, group = tipo, color = color)) +
+  geom_line() +
+  facet_wrap(~ tipo2, scales = "free_y", ncol = 1) +
+  ggtitle("Carteras") + 
+  sin_lineas +
+  scale_color_manual(values = c("normal" = 'black', "deflactada" = 'red'),
+                     guide = guide_legend(title = "Tipo", labels = c("normal", "deflactada"))) +
+  theme(legend.position = "bottom")
+
+```
+
+
+
+Los datos reales representados en color rojo revelan una disminución en la cartera de PyMES en los últimos años, 
+con una caída notable entre 2020 y 2021 debido al impacto del COVID. El periodo comprendido entre 2017 y 2019 
+muestra el mejor desempeño para este sector, aunque sin un crecimiento significativo. 
+
+Por otro lado, en el caso de la cartera de tarjetas, se puede observar una disminución en términos reales desde 2014, 
+manteniéndose constante hasta alcanzar uno de sus niveles más bajos entre 2020 y 2021.
+
+La cartera hipotecaria ha experimentado un crecimiento constante en términos reales a partir de 2015. 
+Antes de ese año, su valor se mantenía estancado o sufría pequeñas caídas en comparación con 2009. 
+A partir de 2020, se observa una desaceleración en este crecimiento, pero sorprendentemente no se registra 
+una disminución en términos reales debido al impacto del COVID.
+
+Es importante destacar que ninguna de las series parece ser estacionaria^[Más precisamente, si $y_t$ es una serie de tiempo estacionaria, entonces para todo $s$, la distribución de $(y_t,...,y_{t+s})$ no depende de $t$.]. 
+
+Aunque en esta sección no profundizaremos en los detalles de la implementación de modelos, 
+realizaremos pruebas de estacionariedad para cada serie. Este dato es relevante, ya que afectará el 
+enfoque que adoptemos para modelar los datos, ya sea mediante ajustes a los datos o al modelo, o una combinación de ambos.
+
 
 \newpage 
 
