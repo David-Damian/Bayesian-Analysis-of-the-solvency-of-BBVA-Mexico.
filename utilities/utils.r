@@ -1,3 +1,26 @@
+# Librerías que usaremos
+library(patchwork)
+library(tidyverse)
+library(kableExtra)
+library(R2OpenBUGS)
+library(R2jags)
+library(gridExtra)
+library(pander)
+library(readxl)
+library(rmarkdown)
+
+library(GGally)
+library(zoo)
+library(lubridate)
+library(data.table)
+library(tseries)
+library(gridExtra)
+library(tseries)
+library(ggfortify)
+library(FinTS)
+
+# ------------------------------------------------------------------------
+
 # Resumen gráfico de cadenas de Markov
 # Grid con: trazas de las cadenas generadas, 
 # promedios ergodicos de cada cadena
@@ -26,7 +49,7 @@ traza <- mcmc_trace(x, regex_pars = "parametro") +
 
 # Calcular la media acumulada de los datos por cadena
 data_cummean <- chains_beta0 |>
-  group_by(cadena) %>% 
+  group_by(cadena) |>
   mutate(cummean_valores = cummean(valores))
 
 # Graficar la media acumulada de los datos por cadena
@@ -94,4 +117,20 @@ sin_ejes <- theme(axis.ticks = element_blank(),
 prob<-function(x){
   out<-min(length(x[x>0])/length(x),length(x[x<0])/length(x))
   out
+}
+
+deflactar_serie <- function(serie, serie_inpc) {
+  # Keep only the dates that are present in both series
+  common_dates <- intersect(index(serie), index(serie_inpc))
+  serie <- serie[common_dates]
+  serie_inpc <- serie_inpc[common_dates]
+  
+  # Calculate the deflation factor
+  base_inpc <- 63.02
+  factor_deflactor <- serie_inpc / base_inpc
+  
+  # Deflate the series
+  serie_deflactada <- serie / factor_deflactor
+  
+  return(serie_deflactada)
 }
