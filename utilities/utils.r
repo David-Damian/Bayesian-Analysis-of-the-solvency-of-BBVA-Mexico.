@@ -19,6 +19,9 @@ library(tseries)
 library(ggfortify)
 library(FinTS)
 
+# bayesian models for TS
+library(bsts)
+
 # ------------------------------------------------------------------------
 
 # Resumen gráfico de cadenas de Markov
