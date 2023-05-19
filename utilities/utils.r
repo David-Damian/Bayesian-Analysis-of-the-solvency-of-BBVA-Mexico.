@@ -19,8 +19,11 @@ library(tseries)
 library(ggfortify)
 library(FinTS)
 
-# bayesian models for TS
+# BAYESIAN PACKAGES
+## bayesian models for TS
 library(bsts)
+## Stan
+library(cmdstanr)
 
 # ------------------------------------------------------------------------
 
@@ -136,4 +139,9 @@ deflactar_serie <- function(serie, serie_inpc) {
   serie_deflactada <- serie / factor_deflactor
   
   return(serie_deflactada)
+}
+
+limpiar_draws <- function(draws, vars){
+  draws |>  pivot_longer(contains(vars), names_to = "variable", values_to = "valores") |>
+    separate(variable, into = c("variable", "t", "indice"), sep = "[\\[,\\]]", convert = TRUE, extra = "drop")
 }
