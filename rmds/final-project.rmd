@@ -140,7 +140,9 @@ datos_cartera <- read_excel("../data/carteraP_2022.xlsx", sheet = 1, col_names =
 datos_captacion <- read_excel("../data/captacionP_2022.xlsx", sheet = 1, col_names = TRUE, col_types = NULL, na = "", skip = 0)
 
 #Variables explicativas
+## mensuales
 variables_m <- read.table("../data/var_baseM_2022.txt", sep = "\t", header = TRUE)
+## trimestrales
 variables_t <- read.table("../data/var_baseT_2022.txt", sep = "\t", header = TRUE)
 ```
 
@@ -172,9 +174,8 @@ Los objetivos específicos del proyecto son:
 
 - Analizar tres productos de la cartera minorista: tarjeta de crédito (TDC), hipotecario y PyMES; en función 
 de diferentes variables macroeconómicas, para la evaluación de la solvencia bancaria.
-- Identificar las variables macroeconómicas relevantes que afectan la solvencia de los productos financieros de la banca de _retail_.
+- Identificar las variables macroeconómicas relevantes que afectan la solvencia de los productos financieros de la banca minorista.
 - Modelar y predecir la evolución de las series de tiempo de los productos TDC, hipotecaria y PyME a través de modelos lineales dinámicos.
-- Evaluar la solvencia del banco de retail bajo diferentes escenarios macroeconómicos, incluyendo un escenario estresado.
 
 Este trabajo podría ser de utilidad para que, junto con un grupo de expertos, se propongan recomendaciones prácticas 
 a la banca de _retail_ para mejorar su solvencia frente a los escenarios macroeconómicos adversos.
@@ -320,20 +321,463 @@ Antes de ese año, su valor se mantenía estancado o sufría pequeñas caídas e
 A partir de 2020, se observa una desaceleración en este crecimiento, pero sorprendentemente no se registra 
 una disminución en términos reales debido al impacto del COVID.
 
-Es importante destacar que ninguna de las series parece ser estacionaria^[Más precisamente, si $y_t$ es una serie de tiempo estacionaria, entonces para todo $s$, la distribución de $(y_t,...,y_{t+s})$ no depende de $t$.]. 
-
-Aunque en esta sección no profundizaremos en los detalles de la implementación de modelos, 
-realizaremos pruebas de estacionariedad para cada serie. Este dato es relevante, ya que afectará el 
-enfoque que adoptemos para modelar los datos, ya sea mediante ajustes a los datos o al modelo, o una combinación de ambos.
-
 
 \newpage 
+
+## Variables explicativas
+
+En cuanto a las variables explicativas, se distinguen dos grupos basados en su 
+periodicidad: trimestral y mensual. Estas variables abarcan conceptos que afectan 
+directa o indirectamente la economía del país. La siguiente tabla presenta el 
+listado de variables explicativas y su periodicidad, 
+las cuales **se considerarán para la proyección de cada cartera**.
+
+```{r, echo=FALSE}
+panderOptions('table.split.table', Inf)
+set.caption("Variables Mensuales")
+my.data <- "
+  Variable        | Descripción  | Temporalidad 
+  INPC      | Indice de precios | Mensual 
+  Exchange_rate_USD      | Tipo de cambio USDMXN | Mensual 
+  Exchange_rate_Euro | Tipo de cambio EURUSD | Mensual 
+  CETES_1m | Tasa CETES a 28 días | Mensual 
+  CETES_3m | Tasa CETES a 3 meses | Mensual 
+  CETES_6m | Tasa CETES a 6 meses | Mensual 
+  CETES_12m | Tasa CETES a 12 meses | Mensual 
+  Sovereign_3y | Tasa bono soberano a 3 años | Mensual 
+  Sovereign_5y | Tasa bono soberano a 5 años | Mensual 
+  Sovereign_10y | Tasa bono soberano a 10 años | Mensual 
+  Tasa_fondeo_1d | Tasa CETES a 28 días | Mensual 
+  Official_interest_rate_USA | Tasa CETES a 28 días | Mensual 
+  Treasury_1m | Tasa del tesoro 1 mes | Mensual 
+  Treasury_3m | Tasa del tesoro 3 meses | Mensual 
+  Treasury_6m | Tasa del tesoro 6 meses | Mensual 
+  Treasury_1y | Tasa del tesoro 1 año | Mensual 
+  Treasury_2y | Tasa del tesoro 2 años | Mensual 
+  Treasury_3y | Tasa del tesoro 3 años | Mensual 
+  Treasury_5y | Tasa del tesoro 5 años | Mensual 
+  Treasury_10y | Tasa del tesoro 10 años | Mensual 
+  IMSS | Cartera IMSS | Mensual 
+  Salario | Salrio mínimo mensual | Mensual 
+  EMBI | Sepa | Mensual 
+  Tasa_BANXICO | Tasa de referencia BANXICO | Mensual 
+  Stock Market | Valor de mercado | Trimestral
+  S&P 500 | Valor del S&P 500 | Trimestral
+  VIX | Spea | Trimestral
+  Tasa Desempleo | Tasa de desempleo en México | Trimestral
+  Exportaciones no Petroleras | Exportaciones de bienes distintos al petróleo | Trimestral"
+df <- read.delim(textConnection(my.data),header=FALSE,sep="|",strip.white=TRUE,stringsAsFactors=FALSE)
+names(df) <- unname(as.list(df[1,])) # put headers on
+df <- df[-1,] # remove first row
+row.names(df)<-NULL
+pander(df, style = 'rmarkdown')
+```
+
+### Descomposición variables trimestrales
+
+### Tratamiento final
+
+La concepción de negocio de cada cartera es que una misma variable puede afectar de manera distinta 
+la proyección, es por ello que es válido pensar que en cada caso las variables que tenemos como 
+explicativas pueden recibir tratamientos distintos, sin embargo esto no exime de que cietas 
+transformaciones deban ser hechas sin importar que se trate del modelo de PyME, TDC o Hipoteario. 
+
+El primer ajuste que debemos considerar es deflactar las varibles monetarias, al igual que 
+nuestras variable respuesta, las variables monetarias explicativas deben ser deflactadas 
+para que en cualquier caso la proyección tenga sentido y sea consistente (aún si no tuvieramos un buen modelo). 
+El siguiente paso consiste es considerar los ajustes por diferencias o por tasas según se trate de cada cartera, 
+con el objeto de que los datos sean comparables y el modelo siga siendo consistente. 
+
+Para el caso de la cartera PyME se consideran segundas diferencias y de manera adicional se toma en cuenta escalar los datos, esto debido principalmente a que en realidad las unidades de cada variable son muy distinitas lo que puede dar mayor o menor peso y es posible obtener un modelo con bajo performance. Es importante mantener la escala de manera consistente, esto debido a que al momento de hacer las proyecciones futuras convertir los datos a sus valores nominales será importante, pues finalmente es el dato que en todo caso se debe reportar al regulador. Para ello debemos siempre escalar los datos considerando la media y varianza original con la que se ajusta el modelo al momento de hacer nuevas proyecciones. 
+
+```{r, echo=FALSE}
+df_research_m <- read.table('../data/var_baseM_2022.txt',sep='\t',header = TRUE)
+df_research_t <- read.table('../data/var_baseT_2022.txt',sep='\t',header = TRUE) |> select(Fechas,Stock_market, S.P500,Tasa_desempleo,Exportaciones_NO_Petroleras)
+
+cartera <- read_excel("../data/carteraP_2022.xlsx", sheet = 1, col_names = TRUE, col_types = NULL, na = "", skip = 0)
+cartera <- cartera |> select(Fecha, PyME, TDC, Hipotecaria)
+cartera$Fecha <- as.Date(cartera$Fecha, format = "%d/%m/%Y")
+
+# Convert dates to R date format
+df_research_t$Fechas <- as.Date(df_research_t$Fechas, format = "%d/%m/%Y")
+df_research_m$Fechas <- as.Date(df_research_m$Fechas, format = "%d/%m/%Y")
+
+
+# # Convert the dataframe to a zoo object
+df_research_t_zoo <- read.zoo(df_research_t, format = "%Y-%m-%d")
+# 
+
+# generate monthly sequence of dates
+start_date <- as.Date(as.yearqtr(start(df_research_t_zoo)))
+monthly_index <- seq(start_date, end(df_research_t_zoo), by = "month")
+
+# Create an empty zoo object with monthly index
+df_research_t_zoo_monthly <- zoo(order.by = monthly_index)
+
+# Merge original zoo object with empty monthly zoo object
+df_research_t_zoo_monthly_2 <- merge(df_research_t_zoo, df_research_t_zoo_monthly)
+
+# Interpolate missing values for each column using na.approx() function
+df_research_t_zoo_monthly3 <- na.approx(df_research_t_zoo_monthly_2)
+
+# Convert df_research_m to a zoo object with a date index
+df_research_m_zoo <- read.zoo(df_research_m, format = "%Y-%m-%d")
+
+# Merge df_research_t_zoo_monthly and df_research_m_zoo by their date index
+df_merged <- merge(df_research_t_zoo_monthly3, df_research_m_zoo)
+
+df_research_t <- fortify.zoo(df_merged)
+df_research_t2<- setDT(df_research_t, key = "Index")
+df_research_t2 <- df_research_t2[3:nrow(df_research_t2),]
+
+#deflactamos las variables
+df_research_t2_mod <- df_research_t2
+df_research_t2_mod$Tasa_desempleo <- df_research_t2_mod$Tasa_desempleo/100
+df_research_t2_mod$Exportaciones_NO_Petroleras <- deflactar_serie(df_research_t2_mod$Exportaciones_NO_Petroleras, 
+                                                                  df_research_t2_mod$INPC)
+
+df_research_t2_mod$CETES_1m <- df_research_t2_mod$CETES_1m/100
+df_research_t2_mod$CETES_3m <- df_research_t2_mod$CETES_3m/100
+df_research_t2_mod$CETES_6m <- df_research_t2_mod$CETES_6m/100
+df_research_t2_mod$CETES_12m <- df_research_t2_mod$CETES_12m/100
+
+df_research_t2_mod$Sovereign_3y <- df_research_t2_mod$Sovereign_3y/100
+df_research_t2_mod$Sovereign_5y <- df_research_t2_mod$Sovereign_5y/100
+df_research_t2_mod$Sovereign_10y <- df_research_t2_mod$Sovereign_10y/100
+
+df_research_t2_mod$Tasa_fondeo_1d <- df_research_t2_mod$Tasa_fondeo_1d/100
+df_research_t2_mod$Official_Interest_rate_USA <- df_research_t2_mod$Official_Interest_rate_USA/100
+
+df_research_t2_mod$Treasury_1m <- df_research_t2_mod$Treasury_1m/100
+df_research_t2_mod$Treasury_3m <- df_research_t2_mod$Treasury_3m/100
+df_research_t2_mod$Treasury_6m <- df_research_t2_mod$Treasury_6m/100
+df_research_t2_mod$Treasury_1y <- df_research_t2_mod$Treasury_1y/100
+df_research_t2_mod$Treasury_2y <- df_research_t2_mod$Treasury_2y/100
+df_research_t2_mod$Treasury_3y <- df_research_t2_mod$Treasury_3y/100
+df_research_t2_mod$Treasury_5y <- df_research_t2_mod$Treasury_5y/100
+df_research_t2_mod$Treasury_10y <- df_research_t2_mod$Treasury_10y/100
+
+df_research_t2_mod$Salario <- deflactar_serie(df_research_t2_mod$Salario, df_research_t2_mod$INPC)
+df_research_t2_mod$Tasa_BANXICO <- df_research_t2_mod$Tasa_BANXICO/100
+df_research_t2_mod$PIB <- deflactar_serie(df_research_t2$PIB, df_research_t2_mod$INPC)
+
+df_research_t2_mod1 <- df_research_t2_mod %>% select(-Index)
+df_research_t2_mod1 <- as.data.frame(lapply(df_research_t2_mod1, diff, differences = 2))
+
+df_research_t2_mod1$Fecha <- df_research_t2_mod$Index[3:nrow(df_research_t2_mod)]
+
+cartera2 <- cartera[3:185,]
+cartera3 <- cartera2 %>% select(-Fecha)
+cartera3 <- as.data.frame(lapply(cartera3, diff, differences = 2))
+
+datos_modelo <- df_research_t2_mod1[1:181,]
+datos_modelo <- cbind(datos_modelo, cartera3)
+
+datos_proyeccion <- df_research_t2_mod1[182:nrow(df_research_t2_mod1),]
+```
+
+
+### Comparativo final
+
+Una vez hecho el tratamiento de cada variable nos interesa ver la correlación ya que 
+esto es un buen indicio de lo que podmos esperar en el ajuste del modelo, sobre todo 
+en el tema de selección de variables pues nos interesa proponer el ajuste de un modelo 
+final para cada caso y que realmente sea funcional. La siguiente tabla muestra la correlación de cada vaiable con el tratamiento final para cada cartera. 
+
+
+```{r, echo=FALSE}
+#Calculod de las correlaciones con varibales transformdas y no transformadas
+
+variables_m1 <- variables_m
+variables_m1$Salario <- deflactar_serie(variables_m$Salario, variables_m$INPC)
+variables_m1$EMBI <- deflactar_serie(variables_m1$EMBI, variables_m$INPC)
+variables_m1$PIB <- deflactar_serie(variables_m1$PIB, variables_m$INPC)
+variables_m1 <- variables_m1[1:185,]
+variables_m1$PyME <- datos_cartera_mod$PyME_deflactada
+variables_m1$TDC <- datos_cartera_mod$TDC_deflactada
+variables_m1$HIP <- datos_cartera_mod$Hipotecaria_deflactada
+variables_m2 <- variables_m1[,2:ncol(variables_m1)]
+variables_m1$Fecha <- datos_cartera_mod$Fecha
+variables_m1 <- variables_m1 %>% select(-Fechas)
+
+
+variables_transm2 <- as.data.frame(lapply(variables_m2, diff, differences = 2))
+variables_transm1 <- variables_transm2
+variables_transm1$Fecha <- datos_cartera_mod$Fecha[3:185]
+
+#Pyme
+data_cor_no_trans <- cor(variables_m2[ , colnames(variables_m2) != "PyME"],
+                variables_m2$PyME) %>% as.data.frame()
+
+data_cor_trans <- cor(variables_transm2[ , colnames(variables_transm2) != "PyME"],
+                variables_transm2$PyME) %>% as.data.frame()
+varnames <- rownames(data_cor_no_trans)
+rownames(data_cor_trans) <- NULL
+rownames(data_cor_no_trans) <- NULL
+
+data_cor_trans$Variable <- varnames
+data_cor_no_trans$Variable <- varnames
+
+data_cor_trans <- data_cor_trans %>% mutate(Corr_trans_PyME = V1) %>% select(Variable, Corr_trans_PyME)
+data_cor_no_trans <- data_cor_no_trans %>% mutate(Corr_no_trans_PyME = V1) %>% select(Variable, Corr_no_trans_PyME)
+
+data_correlacion_pyme <- cbind(data_cor_no_trans, data_cor_trans%>% select(Corr_trans_PyME))
+data_correlacion_pyme <- data_correlacion_pyme[1:25,]
+
+#TDC
+data_cor_no_trans <- cor(variables_m2[ , colnames(variables_m2) != "TDC"],
+                variables_m2$TDC) %>% as.data.frame()
+
+data_cor_trans <- cor(variables_transm2[ , colnames(variables_transm2) != "TDC"],
+                variables_transm2$TDC) %>% as.data.frame()
+varnames <- rownames(data_cor_no_trans)
+rownames(data_cor_trans) <- NULL
+rownames(data_cor_no_trans) <- NULL
+
+data_cor_trans$Variable <- varnames
+data_cor_no_trans$Variable <- varnames
+
+data_cor_trans <- data_cor_trans %>% mutate(Corr_trans_TDC = V1) %>% select(Variable, Corr_trans_TDC)
+data_cor_no_trans <- data_cor_no_trans %>% mutate(Corr_no_trans_TDC = V1) %>% select(Variable, Corr_no_trans_TDC)
+
+data_correlacion_tdc <- cbind(data_cor_no_trans, data_cor_trans%>% select(Corr_trans_TDC))
+data_correlacion_tdc <- data_correlacion_tdc[1:25,]
+
+#HIP
+data_cor_no_trans <- cor(variables_m2[ , colnames(variables_m2) != "HIP"],
+                variables_m2$HIP) %>% as.data.frame()
+
+data_cor_trans <- cor(variables_transm2[ , colnames(variables_transm2) != "HIP"],
+                variables_transm2$HIP) %>% as.data.frame()
+varnames <- rownames(data_cor_no_trans)
+rownames(data_cor_trans) <- NULL
+rownames(data_cor_no_trans) <- NULL
+
+data_cor_trans$Variable <- varnames
+data_cor_no_trans$Variable <- varnames
+
+data_cor_trans <- data_cor_trans %>% mutate(Corr_trans_HIP = V1) %>% select(Variable, Corr_trans_HIP)
+data_cor_no_trans <- data_cor_no_trans %>% mutate(Corr_no_trans_HIP = V1) %>% select(Variable, Corr_no_trans_HIP)
+
+data_correlacion_hip <- cbind(data_cor_no_trans, data_cor_trans%>% select(Corr_trans_HIP))
+data_correlacion_hip <- data_correlacion_hip[1:25,]
+
+tabla_correlaciones <- cbind(data_correlacion_pyme, data_correlacion_tdc, data_correlacion_hip)
+tabla_correlaciones <- tabla_correlaciones %>% select(-4,-7)
+```
+
+```{r, echo=FALSE}
+
+#Impresion tabla correlaciones
+knitr::kable(tabla_correlaciones, 
+             col.names = c("Variable",
+                           "PyME No Transformada",
+                           "PyME Transformada",
+                           "TCD Tranformada",
+                           "TDC No Tranformada",
+                           "HIP Transformada",
+                           "HIP No Transformada"), 
+                           caption='Correlaciones entre variables',
+                           booktabs = T, align = "l",
+                           format='pandoc', digits = 4)
+```
+
+La tabla de correlaciones muestra valores altos cuando las variables no están transformadas para algunas variables. Llama la atención, por ejemplo, los valores altos ya sea positivos o negativos que toma el PIB, sin embargo no necesariamente los valores de estás carteras tienen que responder necesariamente al comportamiento el PIB, pero el PIB si puede tener una influencia en como se comportan aunque sea de manera indirecta. 
+
+Lo contrario sucede cuando las variables sufren una trandormación, en general se muestran valores pequeños. Para tener un mejor panorama de este fenómeno, la siguiente figura muetra un compartivo tomando la cartera de PyME y comparando vesus el PIB. 
+
+
+```{r, echo=FALSE, message = FALSE, warning=FALSE, fig.align='center',fig.width=9, fig.height=7,fig.cap="Correlaciones"}
+
+a1 <- variables_m1 %>% ggplot(aes(x=Fecha, y=scale(PyME))) + geom_line() +
+  geom_line(aes(x=Fecha, y =scale(PIB)), col = 'red') +
+  ggtitle("Correlación Cartera PyME vs PIB") +
+  sin_lineas
+  
+
+a2 <- variables_transm1 %>% ggplot(aes(x=Fecha, y=scale(PyME))) + geom_line() +
+  geom_line(aes(x=Fecha, y =scale(PIB)), col = 'red') +
+  ggtitle("Correlación Cartera PyME vs PIB datos escalados") +
+  sin_lineas
+
+a1/a2
+
+```
+
+
+Las series transformadas muestran de una forma más clara los efectos en cambios 
+abruptos como lo es el COVID y que se observa calaramente en la línea roja en el 
+año 2020, en donde sabemso que existe una fuerte caída y alza del PIB de acuerdo 
+con cifras del INEGI. En el anexo de este documento se pueden observar el resto de
+gráficos comparativos para las tres carteras y todas las variables.  
+
+
+
+
+
+\newpage
 
 # Modelado e implementación
 
 describan con detalle el modelo, con todas sus especificaciones, que usarán para 
 resolver sus objetivos. Corran su modelo en R-OpenBugs-JAGS y den detalles de sus cadenas, 
 convergencia, etc.
+
+### Modelo PyME 
+
+Dada la transformación de variables considerada en la sección anterior para el caso 
+PyMES planteamos el siguiente modelo estático. Dado que todas las variables 
+son numéricas, la implementación es sencilla y relativamente fácil de interpretar. El planteamiento 
+del modelo es el siguiente:
+
+$$Y_i = \alpha   + \beta_{1}Stockmarket_i  + \beta_{2}SP500_{i}+ ... + \beta_{29}PIB_{i} + \epsilon_t$$
+
+donde $\epsilon_t \sim N(0,V^{-1})$,  con $i=0,1,2,3,...,n$
+
+El modelo plantea noramilidad en cualquier caso. Se consideran distribuciones iniciales no 
+informativas tal que $\alpha ~ \sim N(0,0.001)$, $\beta_{i0} ~ \sim N(0,0.001)$ y $V^{-1} \sim Ga(0.001,0.001)$. 
+La simulación del modelo considera 10,000 iteraciones con un periodo de calentmaiento de 10% y sin adelgazamiento. 
+
+Dada la grán cantidad de parámetros, la siguiente figura muestra únicamente 
+la convergencia para $\alpha$ y $\beta_1$. Posteriormente, mostraremos diagnósticos 
+numéricos de convergencia de cada parámetro.
+
+\newpage
+## Modelo TDC
+
+Presentamos los dianósticos numéricos para los parámetro del modelo en la ecuacion ...
+```{r, echo=FALSE}
+#Data entrenamiento
+train_data <- datos_modelo[1:169,]
+train_data <- train_data %>% select(-Fecha)
+test_data <- datos_modelo[170:181,]
+
+datos_completos <- rbind(datos_modelo[,1:30],datos_proyeccion)
+
+#medias
+mean_data <- colMeans(train_data)
+sd_data <- apply(train_data, 2, sd)
+
+n <- nrow(train_data)
+m <- nrow(test_data) + nrow(datos_proyeccion)
+
+#test <- c((train_data$PyME - mean_data[30])/sd_data[30],rep(NA, nrow(datos_proyeccion) + 12))
+
+data.tdc<-list("n"=n, "m"=m,
+           "y"=c(scale(train_data$TDC),rep(NA, nrow(datos_proyeccion) + 12)),
+           "x1"=(datos_completos$Stock_market - mean_data[1])/sd_data[1],
+           "x2"=(datos_completos$S.P500 - mean_data[2])/sd_data[2],
+           "x3"=(datos_completos$Tasa_desempleo - mean_data[3])/sd_data[3],
+           "x4"=(datos_completos$Exportaciones_NO_Petroleras - mean_data[4])/sd_data[4],
+           "x5"=(datos_completos$INPC - mean_data[5])/sd_data[5],
+           "x6"=(datos_completos$Exchange_rate_USD - mean_data[6])/sd_data[6],
+           "x7"=(datos_completos$Exchange_rate_Euro - mean_data[7])/sd_data[7], 
+           "x8"=(datos_completos$CETES_1m - mean_data[8])/sd_data[8], 
+           "x9"=(datos_completos$CETES_3m - mean_data[9])/sd_data[9],
+           "x10"=(datos_completos$CETES_6m - mean_data[10])/sd_data[10], 
+           "x11"=(datos_completos$CETES_12m - mean_data[11])/sd_data[11], 
+           "x12"=(datos_completos$Sovereign_3y - mean_data[12])/sd_data[12],
+           "x13"=(datos_completos$Sovereign_5y - mean_data[13])/sd_data[13], 
+           "x14"=(datos_completos$Sovereign_10y - mean_data[14])/sd_data[14], 
+           "x15"=(datos_completos$Tasa_fondeo_1d - mean_data[15])/sd_data[15],
+           "x16"=(datos_completos$Official_Interest_rate_USA - mean_data[16])/sd_data[16], 
+           "x17"=(datos_completos$Treasury_1m - mean_data[17])/sd_data[17],
+           "x18"=(datos_completos$Treasury_3m - mean_data[18])/sd_data[18], 
+           "x19"=(datos_completos$Treasury_6m - mean_data[19])/sd_data[19], 
+           "x20"=(datos_completos$Treasury_1y - mean_data[20])/sd_data[20],
+           "x21"=(datos_completos$Treasury_2y - mean_data[21])/sd_data[21],
+           "x22"=(datos_completos$Treasury_3y - mean_data[22])/sd_data[22], 
+           "x23"=(datos_completos$Treasury_5y - mean_data[23])/sd_data[23],
+           "x24"=(datos_completos$Treasury_10y - mean_data[24])/sd_data[24],
+           "x25"=(datos_completos$IMSS - mean_data[25])/sd_data[25], 
+           "x26"=(datos_completos$Salario - mean_data[26])/sd_data[26],
+           "x27"=(datos_completos$EMBI - mean_data[27])/sd_data[27],
+           "x28"=(datos_completos$Tasa_BANXICO - mean_data[28])/sd_data[28], 
+           "x29"=(datos_completos$PIB - mean_data[29])/sd_data[29])
+```
+
+```{r echo=FALSE, eval=FALSE}
+initsa<-function(){list(alpha=0,beta=rep(0,29),tau=1,yf1=rep(1,n+m))}
+parameters<-c("alpha","beta","tau","yf1")
+tdc.est.sim<-jags(data.tdc,initsa,parameters,
+                  model.file="estatico.txt", n.iter=10000,
+                  n.chains=2,n.burnin=1000,n.thin=1)
+#guardar simulaciones
+save(tdc.est.sim, file = "data/sims/simsTDC_estatico.RData")
+rm(tdc.est.sim)
+```
+
+```{r echo=FALSE, warning=FALSE}
+load('../data/sims/simsTDC_estatico.RData')
+```
+
+```{r, echo=FALSE}
+tdc.est<-tdc.est.sim
+out.sum<-tdc.est$BUGSoutput$summary
+out<-tdc.est$BUGSoutput$sims.list
+varnames <- rownames(out.sum)[1:30]
+
+# Resumen alpha
+out.sum.alpha<-out.sum[grep("alpha",rownames(out.sum)),c(1,3,7)]
+out.sum.alpha<-cbind(out.sum.alpha,apply(out$alpha,2,prob)) %>% as_data_frame()
+out.sum.alpha <- out.sum.alpha[1:1,]
+out.sum.alpha <- out.sum.alpha %>% mutate(Proba = V2, Media = out.sum.alpha) %>% select(Media, Proba)
+
+# Resumen betas
+out.sum.beta<-out.sum[grep("beta",rownames(out.sum)),c(1,3,7)]
+out.sum.beta<-cbind(out.sum.beta,apply(out$beta,2,prob)) %>% as_data_frame()
+out.sum.beta <- out.sum.beta %>% mutate(Proba = V4, Media = mean) %>% select(Media, Proba)
+
+# prueba hipotesis
+Probas <- rbind(out.sum.alpha, out.sum.beta)
+
+# Diagnositcos numericos de convergencia para los parametros del modelo TDC estatico
+convergencia_df_TDC_estatico <- tibble(parametro = c(sprintf("$\\alpha$"),sprintf("$\\beta_{%s}$", 1:29))) |> 
+mutate(as_tibble(out.sum[1:30,])) |> mutate(prueba.hipotesis=Probas)
+```
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+cap <- 'Diagnósticos de convergencia de los parámetros del modelo estático para la cartera TDC'
+convergencia_df_TDC_estatico |> select(c('parametro', 'Rhat', 'n.eff'))|>
+fancy_table(caption=cap, format='pandoc')
+```
+
+```{r echo=FALSE}
+# resumen estimadores 
+out.sum <- tdc.est$BUGSoutput$summary
+
+# Intervalos del 95 de confianza para las predicciones
+intervalos_estatico_tdc <-out.sum[grep("yf",rownames(out.sum)),c(3,7)] |> as_tibble()
+names(intervalos_estatico_tdc) <- c('lower', 'upper')
+```
+
+```{r echo=FALSE}
+train_size <- nrow(train_data)
+test_size <- nrow(test_data) + nrow(datos_proyeccion)
+point_estimate_TDC <- out.sum[grep("yf1",rownames(out.sum)),c('mean')] |> as_tibble()
+pred_puntual_TDC_train <-  point_estimate_TDC  |> head(train_size)
+pred_puntual_TDC_test <- point_estimate_TDC  |> tail(test_size)
+
+predicciones_estatico_train <- tibble(año=1:train_size, TDC_train=scale(train_data$TDC)) |> 
+mutate(est.puntual=pred_puntual_TDC_train$value, intervalos_estatico_tdc[1:train_size,])
+
+# predicciones_estatico_test <- tibble(año=(train_size+1):test_size, TDC_test=rbind(test_data$TDC,datos_proyeccion)) |> 
+# mutate(est.puntual=pred_puntual_TDC_test, tail(intervalos_estatico_tdc, test_size))
+```
+
+```{r echo=FALSE, message = FALSE, warning=FALSE, fig.align='center',fig.width=7, fig.height=3.5, fig.cap="Serie observada (puntos), serie inferida en color blanco y bandas de confianza al $95\\%$"}
+predicciones_estatico_train |> ggplot(aes(x = año, y = TDC_train)) +
+  geom_point() +
+  geom_ribbon(aes(ymin = lower, ymax = upper, alpha = 0.1), fill = "salmon", show.legend = FALSE) + 
+  geom_line(aes(x = año, y = est.puntual), color = "white", size = 1) +
+  ylab('value') +
+  xlab('Año') +
+  sin_lineas 
+  #scale_x_continuous(breaks = seq(min(produccion$Año), max(produccion$Año) + m, by = 1)) +
+  #theme(axis.text.x = element_text(angle = 30, vjust = 0.5, hjust = 1))
+```
+
+
 
 \newpage 
 
@@ -356,3 +800,50 @@ objetivos planteados y sugieran o tomen decisiones con respecto a esos resultado
 Incluyan si quieren, todo el código utilizado. Por favor no incluyen código dentro de ninguna de las secciones anteriores.
 NOTA: Las gráfica que consideren útiles las pueden incluir en cualquiera de las secciones de la i-iv con comentarios para 
 que el lector vea lo que ustedes quieren que vean. Las gráficas que no sean indispensables las pueden mandar al apéndice.
+
+## Analizando estacionariedad
+
+
+Es importante destacar que ninguna de las series presentadas en la Figura 1
+parece ser estacionaria^[Más precisamente, si $y_t$ es una serie de tiempo estacionaria, entonces para todo $s$, la distribución de $(y_t,...,y_{t+s})$ no depende de $t$.]. 
+Aunque esta sección del EDA no se centra en los detalles 
+de la implementación de modelos, consideramos importante realizar pruebas de estacionariedad para cada serie. 
+Esta información es relevante, ya que influirá en el enfoque que elijamos para modelar los datos, 
+ya sea mediante ajustes a los datos, al modelo o una combinación de ambos.
+
+### Cartera PyMES
+
+
+Al examinar la tendencia en los datos, en el cuarto panel, todo indica que no existe estacionalidad. 
+Realizamos una prueba de Dickey-Fuller [3], se obtiene un valor $p=0.9369$, lo que implica
+ rechazar la hipótesis de estacionalidad en la serie.
+
+```{r, echo=FALSE, message = FALSE, warning=FALSE, fig.align='center',fig.width=7, fig.height=3.5, fig.cap="Serie observada para cartera de PyMES y, en azul, la tendencia."}
+pyme_serie <- ts(datos_cartera_mod$PyME_deflactada, frequency = 12)
+tdc_serie <- ts(datos_cartera_mod$TDC_deflactada, frequency = 12)
+hipotecario_serie <- ts(datos_cartera_mod$Hipotecaria_deflactada, frequency = 12)
+
+decompose_pyme <- decompose(pyme_serie)
+decompose_tdc <- decompose(tdc_serie)
+decompose_hip <- decompose(hipotecario_serie)
+
+decompose_pyme$x |> autoplot(ts.linetype = 'solid', ts.geom = 'line') +  
+geom_line(aes(y=decompose_pyme$trend), colour='blue') + theme_bw() + sin_lineas
+
+```
+
+\newpage 
+
+### Cartera TDC e Hipotecaria
+
+
+En relación a la descomposición de las series de TDC e hipotecaria, representadas en los 
+paneles izquierdo y derecho de la Figura \@ref(fig:decompTDChip), se obtienen valores de p de 0.19 y 0.91 
+respectivamente en la prueba de Dickey-Fuller.
+```{r decompTDChip, echo=FALSE, message = FALSE, warning=FALSE, fig.align='center',fig.width=9, fig.height=5, fig.cap="Descomposición de la serie para TDC(izquierda) e hipotecaria (derecha)."}
+decomp_tdc <- decompose_tdc %>% autoplot() + theme_bw()
+decomp_hip <- decompose_hip %>% autoplot() + theme_bw()
+
+decomp_tdc + decomp_hip
+
+```
