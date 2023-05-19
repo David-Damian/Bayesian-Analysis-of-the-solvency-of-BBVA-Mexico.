@@ -1,5 +1,4 @@
 ---
-title: Proyecto final de Regresión Avanzada
 documentclass: article
 output: 
   bookdown::pdf_document2
@@ -146,6 +145,14 @@ variables_m <- read.table("../data/var_baseM_2022.txt", sep = "\t", header = TRU
 variables_t <- read.table("../data/var_baseT_2022.txt", sep = "\t", header = TRUE)
 ```
 
+\newpage
+
+\listoffigures
+
+\newpage
+
+\listoftables
+
 \newpage 
 
 # Introducción
@@ -178,7 +185,7 @@ de diferentes variables macroeconómicas, para la evaluación de la solvencia ba
 - Modelar y predecir la evolución de las series de tiempo de los productos TDC, hipotecaria y PyME a través de modelos lineales dinámicos.
 
 Este trabajo podría ser de utilidad para que, junto con un grupo de expertos, se propongan recomendaciones prácticas 
-a la banca de _retail_ para mejorar su solvencia frente a los escenarios macroeconómicos adversos.
+a la banca minorista para mejorar su solvencia frente a los escenarios macroeconómicos adversos.
 
 \newpage 
 
