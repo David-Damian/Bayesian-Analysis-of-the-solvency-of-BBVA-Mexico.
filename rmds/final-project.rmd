@@ -843,7 +843,7 @@ Probaremos los siguientes modelos:
 
 Con iniciales $\mu_1\sim \text{N}(\text{TDC}_1, \sigma_{obs})$, $\nu_1\sim \text{N}(0, \sigma_{obs})$,
 $\eta_{1,1}^{-1}\sim \text{Ga}(0.01, 0.01)$, $\eta_{2,1}^{-1}\sim \text{Ga}(0.01, 0.01)$ y 
-donde $\sigma_{obs}$ es la varianza de los datos de entrenamiento.
+donde $\sigma_{obs}$ es la desviación estándar de los datos de entrenamiento.
 
 - **Modelo de nivel local con tendencia y estacionalidad**
 \begin{align*}
