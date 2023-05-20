@@ -169,13 +169,15 @@ Uno de estos ejercicios es la prueba de suficiencia de capital, que implica proy
 uno estresado proporcionado por la CNBV.
 
 
+
+## Objetivos
+
 El objetivo general de este proyecto es explorar, desde un enfoque bayesiano, el análisis de la solvencia de un banco, 
 específicamente en el ámbito de la banca minorista a través de la modelación de series de tiempo de sus productos financieros. 
 
 Para ello, se utilizarán modelos lineales dinámicos (DLMs), 
 los cuales permiten modelar y predecir la evolución de una serie de tiempo a lo largo del tiempo y en presencia de ruido aleatorio. 
 En particular, se pretende analizar el comportamiento de los productos tarjetas de crédito (TDC), hipotecaria y PyME, 
-
 
 Los objetivos específicos del proyecto son:
 
@@ -630,7 +632,7 @@ describan con detalle el modelo, con todas sus especificaciones, que usarán par
 resolver sus objetivos. Corran su modelo en R-OpenBugs-JAGS y den detalles de sus cadenas, 
 convergencia, etc.
 
-### Modelo PyME 
+## Modelos PyME 
 
 Dada la transformación de variables considerada en la sección anterior para el caso 
 PyMES planteamos el siguiente modelo estático. Dado que todas las variables 
@@ -650,7 +652,26 @@ la convergencia para $\alpha$ y $\beta_1$. Posteriormente, mostraremos diagnóst
 numéricos de convergencia de cada parámetro.
 
 \newpage
-## Modelo TDC
+## Modelos TDC
+### Estático
+El primer modelo asociado a la cartera de TDC sigue la idea de como hicimos 
+para el modelo de la cartera de PyMES, es decir un modelo de regresión con 
+coeficientes estáticos y considerando todas las variables
+
+\begin{equation}\label{estático_TDC}
+Y_t = \alpha   + \beta_{1}Stockmarket_t  + \beta_{2}SP500_{t}+ ... + \beta_{29}PIB_{t} + \epsilon_t
+\end{equation}
+
+donde $\epsilon_t \sim N(0,V^{-1})$,  con $t=0,1,2,3,...,n$
+
+Igual que antes, consideramos distribuciones iniciales no 
+informativas para los parámetros: $\alpha ~ \sim N(0,0.001)$, $\beta_{i0} ~ \sim N(0,0.001)$ y precisión $V^{-1} \sim Ga(0.001,0.001)$. 
+La simulación del modelo considera 
+
+- Calentamiento de 1,000
+- 10,000 iteraciones
+- No fue necesario adelgazar
+
 
 Presentamos los dianósticos numéricos para los parámetro del modelo en la ecuacion ...
 ```{r, echo=FALSE}
@@ -704,18 +725,19 @@ data.tdc<-list("n"=n, "m"=m,
 ```
 
 ```{r echo=FALSE, eval=FALSE}
+# si no tienes nada en la carpeta de sims, corre este chunk
 initsa<-function(){list(alpha=0,beta=rep(0,29),tau=1,yf1=rep(1,n+m))}
 parameters<-c("alpha","beta","tau","yf1")
 tdc.est.sim<-jags(data.tdc,initsa,parameters,
                   model.file="estatico.txt", n.iter=10000,
                   n.chains=2,n.burnin=1000,n.thin=1)
 #guardar simulaciones
-save(tdc.est.sim, file = "data/sims/simsTDC_estatico.RData")
+save(tdc.est.sim, file = "sims/simsTDC_estatico.RData")
 rm(tdc.est.sim)
 ```
 
 ```{r echo=FALSE, warning=FALSE}
-load('../data/sims/simsTDC_estatico.RData')
+load('../sims/simsTDC_estatico.RData')
 ```
 
 ```{r, echo=FALSE}
@@ -740,7 +762,7 @@ Probas <- rbind(out.sum.alpha, out.sum.beta)
 
 # Diagnositcos numericos de convergencia para los parametros del modelo TDC estatico
 convergencia_df_TDC_estatico <- tibble(parametro = c(sprintf("$\\alpha$"),sprintf("$\\beta_{%s}$", 1:29))) |> 
-mutate(as_tibble(out.sum[1:30,])) |> mutate(prueba.hipotesis=Probas)
+mutate(as_tibble(out.sum[1:30,])) |> mutate(prueba.hipotesis=Probas$Proba)
 ```
 
 ```{r echo=FALSE, message=FALSE, warning=FALSE}
@@ -768,20 +790,288 @@ pred_puntual_TDC_test <- point_estimate_TDC  |> tail(test_size)
 predicciones_estatico_train <- tibble(año=1:train_size, TDC_train=scale(train_data$TDC)) |> 
 mutate(est.puntual=pred_puntual_TDC_train$value, intervalos_estatico_tdc[1:train_size,])
 
-# predicciones_estatico_test <- tibble(año=(train_size+1):test_size, TDC_test=rbind(test_data$TDC,datos_proyeccion)) |> 
-# mutate(est.puntual=pred_puntual_TDC_test, tail(intervalos_estatico_tdc, test_size))
+test_and_proy <- c(as.vector(scale(test_data$TDC)), rep(NA,nrow(datos_proyeccion)))
+
+predicciones_estatico_test <- tibble(año=(train_size+1):(train_size + test_size), TDC=test_and_proy) |> 
+mutate(est.puntual=pred_puntual_TDC_test$value, tail(intervalos_estatico_tdc, test_size))
+
 ```
 
-```{r echo=FALSE, message = FALSE, warning=FALSE, fig.align='center',fig.width=7, fig.height=3.5, fig.cap="Serie observada (puntos), serie inferida en color blanco y bandas de confianza al $95\\%$"}
+```{r echo=FALSE, message = FALSE, warning=FALSE, fig.align='center',fig.width=7, fig.height=3.5, fig.cap="Serie observada (puntos), serie inferida para datos de entrenamiento y prueba en color negro y azul respectivamente; y bandas de confianza al $95\\%$"}
 predicciones_estatico_train |> ggplot(aes(x = año, y = TDC_train)) +
-  geom_point() +
-  geom_ribbon(aes(ymin = lower, ymax = upper, alpha = 0.1), fill = "salmon", show.legend = FALSE) + 
-  geom_line(aes(x = año, y = est.puntual), color = "white", size = 1) +
-  ylab('value') +
-  xlab('Año') +
+  geom_point(color='blue', shape=21) +
+  geom_line(aes(x=año, y = lower), linetype='dashed' , color = "salmon") +
+  geom_line(aes(x=año, y = upper), linetype='dashed' , color = "salmon") +  
+  geom_line(aes(x = año, y = est.puntual), linetype='dashed',color = "black") +
+  geom_line(data= predicciones_estatico_test, aes(x=año, y = lower), linetype='dashed' , color = "green") +
+  geom_line(data= predicciones_estatico_test , aes(x=año, y = upper), linetype='dashed' , color = "green") +  
+  geom_line(data= predicciones_estatico_test, aes(x = año, y = est.puntual), linetype='dashed',color = "blue") +
+  ylab('TDC') +
+  xlab('t') +
+  theme_bw() +
   sin_lineas 
   #scale_x_continuous(breaks = seq(min(produccion$Año), max(produccion$Año) + m, by = 1)) +
   #theme(axis.text.x = element_text(angle = 30, vjust = 0.5, hjust = 1))
+```
+
+Como podemos observar, tenemos un modelo que ajusta bastante mal a los datos. En principio esto está asociado 
+a que no estamos considerando coeficientes ni precisiones dinámicas. Además de no considerar que los datos 
+son mensuales y tiene estacionalidad. 
+
+A pesar de que este primer modelo no es el mejor, nos será de utilidad 
+para seleccionar algunas variables a incluir en los próximos modelos.
+
+\newpage 
+
+### Dinámicos
+
+Toda vez que exploramos el enfoque con coeficientes estáticos, nos centraremos en estudiar 
+modelos de espacio de estados (DLMs). En particular modelamos el nivel, tendencia, estacionalidad y componentes 
+de regresión dinámicas. Cabe mencionar que en esta sección no mostramos los diagnósticos de convergencia
+de cada parámetro pues, como verá el lector, los modelos probados cuentan con bastantes parámetros
+e incluirlos ofuscaría a los lectores del tema central de nuestro trabajo.
+
+Probaremos los siguientes modelos:
+
+- **Modelo de nivel local con tendencia**
+\begin{align*}
+\text{TDC}_t &= \mu_t + \epsilon_t \quad \textit{ecuación de observación}\\
+\mu_t &= \mu_{t-1} + \nu_{t-1} + \eta_{1,t} \quad \textit{ecuación de evolución para nivel}\\
+\nu_t &= \nu_{t-1} + \eta_{2, t} \quad \textit{ecuación de evolución para tendencia}\\
+\
+\end{align*}
+
+Con iniciales $\mu_1\sim \text{N}(\text{TDC}_1, \sigma_{obs})$, $\nu_1\sim \text{N}(0, \sigma_{obs})$,
+$\eta_{1,1}^{-1}\sim \text{Ga}(0.01, 0.01)$, $\eta_{2,1}^{-1}\sim \text{Ga}(0.01, 0.01)$ y 
+donde $\sigma_{obs}$ es la varianza de los datos de entrenamiento.
+
+- **Modelo de nivel local con tendencia y estacionalidad**
+\begin{align*}
+\text{TDC}_t &= \mu_t + \epsilon_t \quad \textit{ecuación de observación}\\
+\mu_t &= \mu_{t-1} + \nu_{t-1} + \eta_{1,t} \quad \textit{ecuación de evolución para nivel}\\
+\nu_t &= \nu_{t-1} + \eta_{2, t} \quad \textit{ecuación de evolución para tendencia}\\
+\gamma_t &= - (\gamma_{t-12} + \gamma_{t-11} + \cdots + \gamma_{t-1}) + \omega_t \quad \textit{ecuación de evolución para estacionalidad}
+\end{align*}
+
+- **Modelo de nivel local con tendencia, estacionalidad y componente de regresión dinámica**
+\begin{equation}\label{mejor-modelo-TDC}
+\begin{aligned}
+\text{TDC}_t &= \mu_t + \beta_{1,t}\,\text{CETES12m}+ \beta_{1,t}\,\text{IMSS}+\epsilon_t \quad \textit{ecuación de observación}\\
+\mu_t &= \mu_{t-1} + \nu_{t-1} + \eta_{1,t} \quad \textit{ecuación de evolución para nivel}\\
+\nu_t &= \nu_{t-1} + \eta_{2, t} \quad \textit{ecuación de evolución para tendencia}\\
+\gamma_t &= - (\gamma_{t-12} + \gamma_{t-11} + \cdots + \gamma_{t-1}) + \omega_t \quad \textit{ecuación de evolución para estacionalidad}
+\end{aligned}
+\end{equation}
+
+Para cada uno se simularon 2 cadenas, con $n=10,000$ iteraciones y un periodo de calentamiento de
+$n_{warmup}=1000$. Para esta parte, se utilizó `Stan` debido a su eficiencia computacional.
+
+\newpage
+
+**Modelo de nivel local con tendencia**
+
+A continuación se presenta el ajuste para este modelo. A su vez, mostramos 
+el comportamiento del componente de tendencia en el tiempo.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+modelos_files <- "../models/compiled/"
+ruta <- file.path("../models/dinamico_nivel_tend.stan")
+mod_est_1 <- cmdstan_model(ruta, dir = modelos_files)
+```
+
+```{r echo=FALSE, message=FALSE, warning=FALSE, results='hide', eval=FALSE}
+## CORRE ESTE CHUNK
+# variable respuesta estandarizada
+tdc_scaled <- scale(train_data$TDC) |> as.vector()
+sims_nivel_tend_est <- mod_est_1$sample(
+  data = list(y = tdc_scaled,  
+              N = length(tdc_scaled),  s_obs = sd(tdc_scaled), 
+              q_nivel = 1,
+              q_tend = 1, # con tendencia
+              n_h = 12,  # numero de pronosticos
+              ii_obs = 1:length(tdc_scaled), 
+              N_obs = length(tdc_scaled)),
+  iter_sampling = 1000, iter_warmup = 1000,
+  parallel_chains = 4, refresh = 1000,
+  adapt_delta = 0.99)
+
+sims_nivel_tend_est$save_object(file = "./sims/nivel_tend_est_fit.rds")
+rm(sims_nivel_tend_est)
+# gc()
+```
+
+```{r carga_objeto_stan, echo=FALSE, message=FALSE, warning=FALSE, results='hide'}
+# cargar objeto sims_nivel_tend_est
+sims_nivel_tend_est <- readRDS(file = "../sims/nivel_tend_est_fit.rds")
+```
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+tdc_scaled <- scale(train_data$TDC) |> as.vector()
+tiempo_tbl <- tibble(TDC_train= tdc_scaled) |> 
+  mutate(t = row_number()) |> 
+  bind_rows(tibble(t = 170:182)) # mutar filas para prediccion
+sims_nivel_tbl <- sims_nivel_tend_est$draws(c("mu"), format = "df") |> 
+  limpiar_draws(c("mu")) |> 
+  left_join(tiempo_tbl)
+media_tbl <- sims_nivel_tbl |>  
+  group_by(variable, t) |> 
+  summarise(media = mean(valores), q5 = quantile(valores, 0.05),
+            q95 = quantile(valores, 0.95))
+predicciones_tbl <- sims_nivel_tend_est$draws(c("y_rep"), format = "df") |> 
+  limpiar_draws(c("y_rep")) |> 
+  left_join(tiempo_tbl) |> 
+  group_by(variable, t) |> 
+  summarise(media = mean(valores), q5 = quantile(valores, 0.05),
+            q95 = quantile(valores, 0.95))
+```
+
+```{r ajusteDin1,echo=FALSE, message = FALSE, warning=FALSE, fig.align='center',fig.width=8, fig.height=4, fig.cap="Ajuste con modelo de nivel local y tendencia."}
+ggplot(sims_nivel_tbl |> filter(variable == "mu")) + 
+  geom_line(data=predicciones_tbl, aes(x = t, y = media),
+             linetype='dashed', colour = "black") +
+  geom_line(data=predicciones_tbl, aes(x=t, y = q5), linetype='dashed' , color = "salmon") +
+  geom_line(data=predicciones_tbl, aes(x=t, y = q95), linetype='dashed' , color = "salmon") +
+  geom_point(aes(x = t, y = TDC_train), color='blue', shape=21) +
+  theme_bw() +
+  xlab('t') +
+  ylab('TDC') +
+  sin_lineas
+```
+
+Como se aprecia en la \@ref(fig:ajusteDin1), si evaluamos visualmente la capacidad predictiva 
+de este modelo, conclcuimos que no es el mejor. No obstante, debemos tener en mente que estamos 
+modelando la tendencia. De manera muy ligera, apreciamos una tendencia a la alta.
+
+
+```{r echo=FALSE, eval=FALSE, message = FALSE, warning=FALSE, fig.align='center',fig.width=8, fig.height=4, fig.cap="Componente de tendencia a lo largo del tiempo."}
+ggplot(sims_nivel_tbl |> filter(variable == "mu")) + 
+  geom_line(aes(x = t, y = valores, group=.draw), alpha=0.01, size=0.1, color='red') +
+  geom_point(aes(x = t, y = TDC_train), color='blue', shape=21) +
+  theme_bw() +
+  xlab('t') +
+  ylab('TDC') +
+  sin_lineas
+```
+
+
+```{r echo=FALSE}
+sims_mcmc_model1 <- cmdstanr::as_mcmc.list(sims_nivel_tend_est)
+```
+
+\newpage
+
+**Modelo de nivel local con tendencia y estacionalidad**
+
+```{r bsts_models, echo=FALSE, message=FALSE, eval=FALSE}
+# variable respuesta estandarizada
+y <- scale(train_data$TDC)
+
+# modelo con nivel local y tendencia
+esp_estado_1 <- 
+  AddLocalLinearTrend(list(), y) 
+
+# local con tendencia y estacionalidad
+esp_estado_2 <- 
+  AddLocalLinearTrend(list(), y) |> 
+  AddSeasonal(y, nseasons = 12) 
+
+# dinamico con CETES12m e IMSS
+CETES12m <- data.tdc$x11[1:train_size]
+IMSS <- data.tdc$x25[1:train_size]
+esp_estado_3 <- 
+  AddLocalLinearTrend(list(), y) |> 
+  AddSeasonal(y, nseasons = 12) |>
+  AddDynamicRegression(y ~ CETES12m + IMSS)
+
+
+#ajuste <- bsts(y, state.specification = esp_estado,
+#              niter = 10000, seed = 2323)
+
+# grafica coeficientes dinamicos
+#plot(ajuste, "dynamic", burn = 1000)
+
+# ajusta varios modelos
+specs <- list(esp_estado_1, esp_estado_2, esp_estado_3)
+ajustes <- map(specs, function(spec){
+  bsts(y, spec, niter = 10000, ping = 1000)
+})
+
+# guarda ajustes (simulaciones)
+save(ajustes, file='./sims/varios_modelos_espacio_estados.RData')
+```
+
+```{r echo=FALSE}
+load('../sims/varios_modelos_espacio_estados.RData')
+```
+
+```{r,echo=FALSE, message = FALSE, warning=FALSE, fig.align='center',fig.width=8, fig.height=4, fig.cap="Ajuste con modelo de nivel local, tendencia y estacionalidad en conjunto de entrenamiento."}
+model2 <- ajustes[[2]]
+plot(model2, "forecast.distribution",burn = 1000, xlab= "Tiempo", ylab="TDC")
+```
+
+Y podemos ver las componentes.
+```{r echo=FALSE, message = FALSE, warning=FALSE, fig.align='center',fig.width=8, fig.height=4, fig.cap="Componentes de tendencia y estacionalidad a lo largo del tiempo."}
+model2 <- ajustes[[2]]
+plot(model2, "components",burn = 1000)
+```
+
+En particular observamos que la tendencia es la que obtuvimos en el modelo anterior pero
+también hemos recuperado estacionalidad.
+\newpage 
+
+**Modelo de nivel local con tendencia, estacionalidad y componente de regresión dinámica**
+
+Observamos el ajuste a continuación. 
+```{r ajusteMejorTDC, echo=FALSE, message = FALSE, warning=FALSE, fig.align='center',fig.width=8, fig.height=4, fig.cap="Ajuste con modelo de nivel local, tendencia, estacionalidad y variables explicativas en conjunto de entrenamiento."}
+model3 <- ajustes[[3]]
+plot(model3, "forecast.distribution",burn = 1000)
+```
+
+```{r coefsDinBestModel, echo=FALSE, message = FALSE, warning=FALSE, fig.align='center',fig.width=8, fig.height=4, fig.cap="Coeficientes dinámicos del modelo."}
+plot(model3, "dynamic", burn = 1000)
+```
+
+Si se compara este ajuste presentado en la Figura \@ref(fig:ajusteMejorTDC) 
+con el del modelo anterior, a simple vista, 
+parece no haber diferencia. No obstante, en la siguiente sección de comparación de modelos 
+notaremos que éste es ligeramente mejor que el anterior.
+
+En la figura \@ref(fig:coefsDinBestModel) presentamos trayectorias bajo 
+la posterior de los coeficientes de regresión dinámica. En particular podemos 
+observar que los coeficientes asociados a la variable IMSS son significativas en todo el periodo de 
+entrenamiento. A diferencia de esta, existen periodos de tiempo para la cual 
+la CETES12M es estadísticamente cero pero no la descartamos pues aporta 
+información en algunos periodos.
+
+
+\newpage
+
+### Comparación de modelos.
+Luego de probar éstos modelos, en la Figura \@ref(fig:compareModelsTDC), presentamos una comparación de ellos 
+en términos del `error absoluto acumulado`.
+```{r compareModelsTDC, echo=FALSE, message = FALSE, warning=FALSE, fig.align='center',fig.width=9, fig.height=5, fig.cap="Comparación de modelos."}
+# COMPARA MODELOS
+CompareBstsModels(ajustes, burn = 2000)
+```
+
+Notablemente, el mejor modelo, dentro del conjunto de modelos implementados, es el 
+de la ecuación \ref{mejor-modelo-TDC} que incluye nivel, tendencia y estacionalidad
+dinámicas, además de componente de regresión con coeficientes dinámicos.
+
+
+### Predicciones con el mejor modelo
+Podemos evaluar la predicción para un conjunto de prueba para el año ... (¿qué año corresponde 
+a los datos de test?)
+
+```{r prediccion-mejormodelo-test, echo=FALSE, message = FALSE, warning=FALSE, fig.align='center',fig.width=7, fig.height=4.5, fig.cap="Predicción puntual en azul e intervalos al $95\\%$"}
+# variable respuesta estandarizada y vector de cero para proyectar
+y_prueba <- c(scale(test_data$TDC), rep(0, 12))
+# extrae el mejor modelo
+model1 <- ajustes[[3]]
+# predice en test y proyecta en
+pred2 <- predict(model1, horizon = length(y_prueba), newdata = y_prueba)
+time <- datos_modelo[1:168,] |> select(Fecha) |> as.vector()
+plot(pred2, plot.original = 156, interval.quantiles = c(.025, .975), xlab='t',ylab='TDC',interval.color='salmon')
 ```
 
 
@@ -794,7 +1084,28 @@ presenten un resumen de sus estimadores e interpreten en el contexto del problem
 Seleccionen las variables importantes. Hagan uso de sus resultados para responder a los 
 objetivos planteados y sugieran o tomen decisiones con respecto a esos resultados.
 
+## Modelos TDC
+
+### Estático
+
+A continuación, presentamos las estimaciones posteriores de los parámetros del 
+modelo \ref{estático_TDC}.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+cap <- 'Estimaciones puntuales y por intervalo de los parámetros del modelo estático para la cartera TDC'
+estimaciones_tdc_estatico <- convergencia_df_TDC_estatico |> select(-c('Rhat', 'n.eff', '25%', '50%', '75%'))
+
+# nombre columnas
+names(estimaciones_tdc_estatico) <- c('parámetro', 'media', 'sd', '2.5%', '97.5%', 'prueba.hipotesis')
+estimaciones_tdc_estatico|>
+fancy_table(caption=cap, format='pandoc')
+```
+
 \newpage 
+
+### Dinámicos
+
+\newpage
 
 # Bibligrafía 
 
