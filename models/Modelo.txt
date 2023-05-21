@@ -1,0 +1,27 @@
+model
+{
+#Likelihood
+for (i in 1:n) {
+	y[i] ~ dnorm(mu[i],tau)
+	mu[i]<-alpha[i]+beta[1,i]*x1[i]+beta[2,i]*x2[i]+beta[3,i]*x3[i]+beta[4,i]*x4[i]+beta[5,i]*x5[i]+beta[6,i]*x6[i]+beta[7,i]*x7[i]+beta[8,i]*x8[i]+beta[9,i]*x9[i]+beta[10,i]*x10[i]+beta[11,i]*x11[i]+beta[12,i]*x12[i]+beta[13,i]*x13[i]+beta[14,i]*x14[i]+beta[15,i]*x15[i]+beta[16,i]*x16[i]+beta[17,i]*x17[i]+beta[18,i]*x18[i]+beta[19,i]*x19[i]+beta[20,i]*x20[i]+beta[21,i]*x21[i]+beta[22,i]*x22[i]+beta[23,i]*x23[i]+beta[24,i]*x24[i]+beta[25,i]*x25[i]
+	}
+#State eq.
+for (i in 2:n) {
+alpha[i] ~ dnorm(alpha[i-1],tau.a)
+for (j in 1:25) {
+	beta[j,i] ~ dnorm(beta[j,i-1],tau.b[j])
+	}
+	}
+#Priors 
+alpha[1] ~ dnorm(0,0.001)
+for (j in 1:25) { beta[j,1] ~ dnorm(0,0.001) }
+tau ~ dgamma(0.001,0.001)
+tau.a ~ dgamma(0.001,0.001)
+for (j in 1:25){
+	tau.b[j] ~ dgamma(0.001,0.001)
+}
+
+#Prediction 1
+for (i in 1:n) { yf1[i] ~ dnorm(mu[i],tau) }
+
+}
