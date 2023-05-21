@@ -1,0 +1,22 @@
+model
+{
+#Likelihood
+for (i in 1:n) {
+	y[i] ~ dnorm(mu[i],tau)
+	mu[i]<-alpha+beta[1]*x1[i]+beta[2]*x2[i]+beta[3]*x3[i]+beta[4]*x4[i]+beta[5]*x5[i]+beta[6]*x6[i]+beta[7]*x7[i]+beta[8]*x8[i]+beta[9]*x9[i]+beta[10]*x10[i]+beta[11]*x11[i]+beta[12]*x12[i]+beta[13]*x13[i]+beta[14]*x14[i]+beta[15]*x15[i]+beta[16]*x16[i]+beta[17]*x17[i]+beta[18]*x18[i]+beta[19]*x19[i]+beta[20]*x20[i]+beta[21]*x21[i]+beta[22]*x22[i]+beta[23]*x23[i]+beta[24]*x24[i]+beta[25]*x25[i]+beta[26]*x26[i]+beta[27]*x27[i]+beta[28]*x28[i]
+	}
+#Priors 
+alpha ~ dnorm(0,0.001)
+for (j in 1:28) { beta[j] ~ dnorm(0,0.001) }
+tau ~ dgamma(0.001,0.001)
+
+#Prediction 1
+for (i in 1:n) { yf1[i] ~ dnorm(mu[i],tau) }
+
+#Prediction 2
+for (i in 1:m) { 
+	yf2[i] ~ dnorm(muf[i],tau) 
+	muf[i]<-alpha+beta[1]*x1[i]+beta[2]*x2[i]+beta[3]*x3[i]+beta[4]*x4[i]+beta[5]*x5[i]+beta[6]*x6[i]+beta[7]*x7[i]+beta[8]*x8[i]+beta[9]*x9[i]+beta[10]*x10[i]+beta[11]*x11[i]+beta[12]*x12[i]+beta[13]*x13[i]+beta[14]*x14[i]+beta[15]*x15[i]+beta[16]*x16[i]+beta[17]*x17[i]+beta[18]*x18[i]+beta[19]*x19[i]+beta[20]*x20[i]+beta[21]*x21[i]+beta[22]*x22[i]+beta[23]*x23[i]+beta[24]*x24[i]+beta[25]*x25[i]+beta[26]*x26[i]+beta[27]*x27[i]+beta[28]*x28[i]
+}
+
+}
