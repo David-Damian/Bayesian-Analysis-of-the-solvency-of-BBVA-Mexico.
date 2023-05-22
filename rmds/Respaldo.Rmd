@@ -1315,14 +1315,14 @@ mutate(est.puntual=pred_puntual_TDC_test$value, tail(intervalos_estatico_tdc, te
 
 ```{r echo=FALSE, message = FALSE, warning=FALSE, fig.align='center',fig.width=7, fig.height=3.5, fig.cap="Regresión estática para TDC con todas las variables : Conjunto de entrenamiento y validación (puntos azules y negros), serie inferida para cada conjunto en color negro y rojo respectivamente; y bandas de confianza al $95\\%$"}
 predicciones_estatico_train |> ggplot(aes(x = fecha, y = TDC_train)) +
-  geom_point(color='blue', shape=21) +
-  geom_line(aes(x=fecha, y = lower), linetype='dashed' , color = "salmon") +
-  geom_line(aes(x=fecha, y = upper), linetype='dashed' , color = "salmon") +  
-  geom_line(aes(x = fecha, y = est.puntual), linetype='dashed',color = "black") +
-  geom_point(data= predicciones_estatico_test|> slice(1:12), aes(x=fecha, y=TDC), color='black', shape=21) +
-  geom_line(data= predicciones_estatico_test|> slice(1:12), aes(x=fecha, y = lower), linetype='dashed' , col = "salmon") +
-  geom_line(data= predicciones_estatico_test|> slice(1:12) , aes(x=fecha, y = upper), linetype='dashed' , color = "salmon") +  
-  geom_line(data= predicciones_estatico_test|> slice(1:12), aes(x = fecha, y = est.puntual), linetype='dashed',color = "red") +
+  geom_line(col = "black") +
+  geom_line(aes(x=fecha, y = lower), linetype='dashed' , color = "blue") +
+  geom_line(aes(x=fecha, y = upper), linetype='dashed' , color = "blue") +  
+  geom_line(aes(x = fecha, y = est.puntual),color = "salmon") + # serie inferida test
+  geom_line(data= predicciones_estatico_test|> slice(1:12), aes(x=fecha, y=TDC), color='black') +
+  geom_line(data= predicciones_estatico_test|> slice(1:12), aes(x=fecha, y = lower), linetype='dashed' , color = "blue") +
+  geom_line(data= predicciones_estatico_test|> slice(1:12) , aes(x=fecha, y = upper), linetype='dashed' , color = "blue") +  
+  geom_line(data= predicciones_estatico_test|> slice(1:12), aes(x = fecha, y = est.puntual),color = "cyan2") +
   ylab('TDC') +
   xlab('Fecha') +
   theme_bw() +
@@ -1437,18 +1437,18 @@ mutate(est.puntual=pred_puntual_TDC_test$value, tail(intervalos_estatico_tdc, te
 
 ```
 
-El ajuste para este modelo se resenta a continuación.
+El ajuste para este modelo se presenta a continuación.
 
 ```{r echo=FALSE, message = FALSE, warning=FALSE, fig.align='center',fig.width=7, fig.height=3.5, fig.cap="Regresión estática para TDC con CETES12m e IMMS como predictores : Conjunto de entrenamiento y validación (puntos azules y negros), serie inferida para cada conjunto en color negro y rojo respectivamente; y bandas de confianza al $95\\%$"}
 predicciones_estatico2_train |> ggplot(aes(x = fecha, y = TDC_train)) +
-  geom_point(color='blue', shape=21) +
-  geom_line(aes(x=fecha, y = lower), linetype='dashed' , color = "salmon") +
-  geom_line(aes(x=fecha, y = upper), linetype='dashed' , color = "salmon") +  
-  geom_line(aes(x = fecha, y = est.puntual), linetype='dashed',color = "black") +
-  geom_point(data= predicciones_estatico2_test|> slice(1:12), aes(x=fecha, y=TDC), color='black', shape=21) +
-  geom_line(data= predicciones_estatico2_test|> slice(1:12), aes(x=fecha, y = lower), linetype='dashed' , col = "salmon") +
-  geom_line(data= predicciones_estatico2_test|> slice(1:12) , aes(x=fecha, y = upper), linetype='dashed' , color = "salmon") +  
-  geom_line(data= predicciones_estatico2_test|> slice(1:12), aes(x = fecha, y = est.puntual), linetype='dashed',color = "red") +
+  geom_line(col = "black") +
+  geom_line(aes(x=fecha, y = lower), linetype='dashed' , color = "blue") +
+  geom_line(aes(x=fecha, y = upper), linetype='dashed' , color = "blue") +  
+  geom_line(aes(x = fecha, y = est.puntual),color = "salmon") + # serie inferida
+  geom_line(data= predicciones_estatico2_test|> slice(1:12), aes(x=fecha, y=TDC), color='black') +
+  geom_line(data= predicciones_estatico2_test|> slice(1:12), aes(x=fecha, y = lower), linetype='dashed' , color = "blue") +
+  geom_line(data= predicciones_estatico2_test|> slice(1:12) , aes(x=fecha, y = upper), linetype='dashed' , color = "blue") +  
+  geom_line(data= predicciones_estatico2_test|> slice(1:12), aes(x = fecha, y = est.puntual),color = "cyan2") +
   ylab('TDC') +
   xlab('Fecha') +
   theme_bw() +
@@ -1594,14 +1594,14 @@ mutate(est.puntual=pred_puntual_TDC_test$value, tail(intervalos_estatico_tdc, te
 
 ```{r echo=FALSE, message = FALSE, warning=FALSE, fig.align='center',fig.width=7, fig.height=3.5, fig.cap="Regresión dinámica para TDC con CETES12m e IMMS como predictores : Conjunto de entrenamiento y validación (puntos azules y negros), serie inferida para cada conjunto en color negro y rojo respectivamente; y bandas de confianza al $95\\%$"}
 predicciones_dinamico_train |> ggplot(aes(x = fecha, y = TDC_train)) +
-  geom_point(color='blue', shape=21) +
-  geom_line(aes(x=fecha, y = lower), linetype='dashed' , color = "salmon") +
-  geom_line(aes(x=fecha, y = upper), linetype='dashed' , color = "salmon") +  
-  geom_line(aes(x = fecha, y = est.puntual), linetype='dashed',color = "black") +
-  geom_point(data= predicciones_dinamico_test|> slice(1:12), aes(x=fecha, y=TDC), color='black', shape=21) +
-  geom_line(data= predicciones_dinamico_test|> slice(1:12), aes(x=fecha, y = lower), linetype='dashed' , col = "salmon") +
-  geom_line(data= predicciones_dinamico_test|> slice(1:12) , aes(x=fecha, y = upper), linetype='dashed' , color = "salmon") +  
-  geom_line(data= predicciones_dinamico_test|> slice(1:12), aes(x = fecha, y = est.puntual), linetype='dashed',color = "red") +
+  geom_line(col = "black") +
+  geom_line(aes(x=fecha, y = lower), linetype='dashed' , color = "blue") +
+  geom_line(aes(x=fecha, y = upper), linetype='dashed' , color = "blue") +  
+  geom_line(aes(x = fecha, y = est.puntual),color = "salmon") + # serie inferida
+  geom_line(data= predicciones_dinamico_test|> slice(1:12), aes(x=fecha, y=TDC), color='black') +
+  geom_line(data= predicciones_dinamico_test|> slice(1:12), aes(x=fecha, y = lower), linetype='dashed' , color = "blue") +
+  geom_line(data= predicciones_dinamico_test|> slice(1:12) , aes(x=fecha, y = upper), linetype='dashed' , color = "blue") +  
+  geom_line(data= predicciones_dinamico_test|> slice(1:12), aes(x = fecha, y = est.puntual),color = "cyan2") +
   ylab('TDC') +
   xlab('Fecha') +
   theme_bw() +
@@ -1640,18 +1640,17 @@ no es la mejor opcion.
 
 ```{r echo=FALSE, message = FALSE, warning=FALSE, fig.align='center',fig.width=7, fig.height=3.5, fig.cap="Proyección de la cartera de TDC hasta 2026"}
 predicciones_dinamico_train |> ggplot(aes(x = fecha, y = TDC_train)) +
-  geom_point(color='blue', shape=21) +  
-  geom_line(aes(x=fecha, y = lower), linetype='dashed' , color = "salmon") +
-  geom_line(aes(x=fecha, y = upper), linetype='dashed' , color = "salmon") +  
-  geom_line(aes(x = fecha, y = est.puntual), linetype='dashed',color = "black") +
-  geom_point(data= predicciones_dinamico_test|> slice(1:12), aes(x=fecha, y=TDC), color='blue', shape=21) +
-  geom_line(data= predicciones_dinamico_test|> slice(1:12), aes(x = fecha, y = est.puntual), linetype='dashed',color = "black") +
-  geom_line(data= predicciones_dinamico_test|> slice(1:12), aes(x=fecha, y = lower), linetype='dashed' , col = "salmon") +
-  geom_line(data= predicciones_dinamico_test|> slice(1:12) , aes(x=fecha, y = upper), linetype='dashed' , color = "salmon") +  
-  geom_point(data= predicciones_dinamico_test|> slice(1:12), aes(x = fecha, y = est.puntual), color='blue', shape=21) + 
-  geom_line(data= predicciones_dinamico_test|> slice(13:67), aes(x = fecha, y = est.puntual), linetype='dashed',color = "red") + # PROYECCIÓN
-  geom_line(data= predicciones_dinamico_test|> slice(13:67), aes(x=fecha, y = lower), linetype='dashed' , col = "salmon") +
-  geom_line(data= predicciones_dinamico_test|> slice(13:67) , aes(x=fecha, y = upper), linetype='dashed' , color = "salmon") +  
+  geom_line(col = "black") +
+  geom_line(aes(x=fecha, y = lower), linetype='dashed' , color = "blue") +
+  geom_line(aes(x=fecha, y = upper), linetype='dashed' , color = "blue") +  
+  geom_line(aes(x = fecha, y = est.puntual),color = "salmon") + # serie inferida en test
+  geom_line(data= predicciones_dinamico_test|> slice(1:12), aes(x=fecha, y=TDC), color='black') +
+  geom_line(data= predicciones_dinamico_test|> slice(1:12), aes(x=fecha, y = lower), linetype='dashed' , color = "blue") +
+  geom_line(data= predicciones_dinamico_test|> slice(1:12) , aes(x=fecha, y = upper), linetype='dashed' , color = "blue") +  
+  geom_line(data= predicciones_dinamico_test|> slice(1:12), aes(x = fecha, y = est.puntual),color = "black") +
+  geom_line(data= predicciones_dinamico_test|> slice(13:67), aes(x = fecha, y = est.puntual), linetype='dashed',color = "cyan2") + # PROYECCIÓN
+  geom_line(data= predicciones_dinamico_test|> slice(13:67), aes(x=fecha, y = lower), linetype='dashed' , col = "blue") +
+  geom_line(data= predicciones_dinamico_test|> slice(13:67) , aes(x=fecha, y = upper), linetype='dashed' , color = "blue") +  
   ylab('TDC') +
   xlab('Fecha') +
   theme_bw() +
@@ -1989,20 +1988,6 @@ Note que la proyección muestra un cambio abrupto para el año 2023 y luego se e
 Incluyan si quieren, todo el código utilizado. Por favor no incluyen código dentro de ninguna de las secciones anteriores.
 NOTA: Las gráfica que consideren útiles las pueden incluir en cualquiera de las secciones de la i-iv con comentarios para 
 que el lector vea lo que ustedes quieren que vean. Las gráficas que no sean indispensables las pueden mandar al apéndice.
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 [1] https://imco.org.mx/pymes_que_requiere_mexico_2009/#:~:text=PYMES%20Generan%20el%2072%25%20del,PYMES%20(independientemente%20del%20sector).
