@@ -31,64 +31,10 @@ source('utilities/utils.r')
 
 
 ```{r, echo=FALSE, message=FALSE, warning=FALSE}
-# Librerías que usaremos
-library(patchwork)
-library(tidyverse)
-library(kableExtra)
-library(R2OpenBUGS)
-library(R2jags)
-library(gridExtra)
-library(pander)
-library(readxl)
-
-library(GGally)
-library(zoo)
-library(lubridate)
-library(data.table)
-library(tseries)
-library(gridExtra)
-library(tseries)
-library(ggfortify)
-library(FinTS)
-library(gridExtra)
-library(cowplot)
-library(bsts)
-
 panderOptions('digits', 4)
 panderOptions('round', 4)
 panderOptions('keep.trailing.zeros', TRUE)
 
-```
-
-
-```{r, echo=FALSE, message=FALSE, warning=FALSE}
-prob<-function(x){
-  out<-min(length(x[x>0])/length(x),length(x[x<0])/length(x))
-  out
-}
-```
-
-
-
-```{r, echo=FALSE, message=FALSE, warning=FALSE}
-#Funcionas
-
-deflactar_serie <- function(serie, serie_inpc) {
-  
-  # Keep only the dates that are present in both series
-  common_dates <- intersect(index(serie), index(serie_inpc))
-  serie <- serie[common_dates]
-  serie_inpc <- serie_inpc[common_dates]
-  
-  # Calculate the deflation factor
-  base_inpc <- 63.02
-  factor_deflactor <- serie_inpc / base_inpc
-  
-  # Deflate the series
-  serie_deflactada <- serie / factor_deflactor
-  
-  return(serie_deflactada)
-}
 ```
 
 
@@ -118,19 +64,21 @@ Para dar cumplimiento a esta norma, toda la banca múltiple debe realizar un seg
 
 En este análisis nos concentraremos en replicar este ejercicio para uno de los bancos con el mayor capital en México: BBVA. Actualmente, se utilizan métodos estadísticos convencionales como regresiones y SARIMAX para generar los escenarios, generalmente se buscan métodos más conservadores que permitan interpretar el impacto de las variables macroeconómicas en los distintos productos del banco. El objetivo general de es desarrollar un enfoque bayesiano, que no solo preserve la interpretabilidad si no que mejore la precisión. Para ello, se utilizarán modelos de regresión bayesiana que pueden ser dinámicos (DLMs) o estáticos.
 
-En particular estamos interesados en analizar el comportamiento de 3 productos pertenecientes a la cartera minorista que son tarjeta de crédito (TDC), hipotecario y PyMES considerando un set de variables macroeconómicos requerido por el regulador. Las PyMES generan el 72% del empleo y 52% del PIB [1]. Por otro lado, las TDC y los cartera hipotecaria son dos de los productos más importantes e influyentes en los negocios de la banca, al grado de que fue el secotr inmobiliario lo que porvoco la crisis del 2008 que llevó a la quiebra a grande bancos en Estados Unidos.
+En particular estamos interesados en analizar el comportamiento de 3 productos pertenecientes a la cartera minorista que son tarjeta de crédito (TDC), hipotecario y PyMES considerando un conjunto de variables macroeconómicos requerido por el regulador. Las PyMES generan el 72% del empleo y 52% del PIB nacional[1]. Por otro lado, las TDC y la cartera hipotecaria son dos de los productos más importantes e influyentes en los negocios de la banca, al grado de que el sector inmobiliario influyó significativamente en la crisis del 2008 que llevó a la quiebra a grandes bancos en Estados Unidos.
 
 De manera específica los objetivos son:
 
-1.	Identificar las variables macroeconómicas relevantes que afectan la solvencia de los productos financieros de la banca de retail. 
+1.	Identificar las variables macroeconómicas relevantes que afectan la solvencia de los productos financieros de la banca de _retail_. 
 2.	Modelar y predecir la evolución de las series de tiempo de los productos TDC, hipotecaria y PyME a través de modelos lineales dinámicos o estáticos bayesianos, bajo un escenario base macroeconómico. 
-3.	Comparar el desempeño predictivo de los modelos DLMs con los métodos estadísticos convencionales (regresiones y SARIMAX). Este trabajo podría ser de utilidad para que, junto con un grupo de expertos, se propongan recomendaciones prácticas a la banca de retail para mejorar su solvencia frente a los escenarios macroeconómicos adversos.
+3.	Comparar el desempeño predictivo de los modelos DLMs con los métodos estadísticos convencionales (regresiones y SARIMAX). 
+
+Este trabajo podría ser de utilidad para que, junto con un grupo de expertos, se propongan recomendaciones prácticas a la banca de _retail_ para mejorar su solvencia frente a los escenarios macroeconómicos adversos.
 
 
 
 # Descripción de la información
 
-Las variables macroeconómicas y financieras regularmente suelen modelarse como serires de tiempo. Es por ello que es necesario conocer y acalarar ciertos conceptos que son de utilidad al momento de ajustar un modelo sea bayesiano o no y que sin duda mejora el entendimiento y/o interpretación del mismo. Es por ello que previo a entrar en el detalle de nuestras variables explicativas y nuestras variables respueta hablaremos de una serie de conceptos que serán aplicables a nuestros datos. 
+Las variables macroeconómicas y financieras regularmente suelen modelarse como series de tiempo. Es por ello que es necesario conocer y acalarar ciertos conceptos que son de utilidad al momento de ajustar un modelo sea bayesiano o no y que, sin duda, mejora el entendimiento y/o interpretación del mismo. Así que previo a entrar en el detalle de nuestras variables explicativas y nuestras variables respueta hablaremos de una serie de conceptos que serán aplicables a nuestros datos. 
 
 **Deflactación**
 
@@ -138,7 +86,7 @@ Deflactar es una de las herramientas más importantes en economía. Por norma ge
 
 **Interpolación**
 
-Como algunas de las variables macroeconómicas se encuentran informadas de manera trimestral, se realiza un método de interpolación lineal, dicho método es un caso particular de la interpolación general de Newton. Con el polinomio de interpolación de Newton se logra aproximar un valor de la función f(x) en un valor desconocido de x. El caso particular, para que una interpolación sea lineal es en el que se utiliza un polinomio de interpolación de grado 1, que se ajusta a los valores en los puntos $x_1$ y $x_2$ . Se denota de la siguiente manera:
+Como algunas de las variables macroeconómicas se encuentran informadas de manera trimestral, se realiza un método de interpolación lineal, dicho método es un caso particular de la interpolación general de Newton. Con el polinomio de interpolación de Newton se logra aproximar un valor de la función $f$ en un valor desconocido $x$. El caso particular, para que una interpolación sea lineal es en el que se utiliza un polinomio de interpolación de grado 1, que se ajusta a los valores en los puntos $x_1$ y $x_2$ . Se denota de la siguiente manera:
 
 $$f(x|x_1;x_2) = f(x_1)+\frac{f(x_2)-f(x_1)}{(x_2 - x_1)} (x-x_1)$$
 
@@ -151,7 +99,7 @@ Parte importante del tratamiento de series de tiempo es realizar transformacione
 3. Análisis de tendencias y patrones: Al eliminar la tendencia y los patrones no estacionarios de una serie, se pueden analizar y estudiar con mayor precisión los componentes estacionarios subyacentes. Esto puede ayudar a identificar patrones y relaciones más claras en los datos.
 4. Predicción más precisa: Las series estacionarias son más predecibles, ya que se supone que su comportamiento futuro se mantendrá dentro de los límites establecidos por las propiedades estadísticas constantes. Los modelos y técnicas de predicción basados en la estacionariedad tienden a producir mejores resultados.
 
-A través de la prueba de Dickey-Fuller revisaremos que los tres productos cumplan la estaionariedad. La hipótesis nula de la prueba es que la serie tiene una raíz unitaria, lo que indica la presencia de no estacionariedad. La prueba compara el estadístico de prueba con valores críticos para determinar si se puede rechazar la hipótesis nula y concluir que la serie es estacionaria.
+A través de la prueba de Dickey-Fuller revisaremos que los tres productos cumplan la estacionariedad. La hipótesis nula de la prueba es que la serie tiene una raíz unitaria, lo que indica la presencia de no estacionariedad. La prueba compara el estadístico de prueba con valores críticos para determinar si se puede rechazar la hipótesis nula y concluir que la serie es estacionaria.
 La fórmula de la prueba de Dickey-Fuller empleada es la siguiente, la cual considera una constante y una tendencia lineal:
 
 $$\Delta y_t = \rho y_{t-1} + \beta_0 + \beta_1 t + \varepsilon_t$$
@@ -778,7 +726,8 @@ pander(tabla_correlaciones, style = 'rmarkdown', col.names = c("Variable",
 ```
 
 
-La tabla muestra que en cualquiera de las carteras la varible más correlacionada es la del IMSS, como ya hemos mencionado, esta variable corresponde al número de trabajadores que cotizan para dicha institución. Note que la correlación es positiva lo cual en cierta forma puede resultar se un tanto intutiva si pensamos en que a mayor número de cotizantes seguramente mayor será la canitidad de personas empleadas y con ello una mayor dinámica en la economía que incluyen los créditos. La siguiente figura muestra la relación de esta variable para cada cartera. 
+La tabla muestra que en cualquiera de las carteras la varible más correlacionada es la del IMSS. Como ya hemos mencionado, dicha variable corresponde al número de trabajadores que cotizan en el IMSS. 
+Note que la correlación es positiva lo cual, en cierta forma, puede resultar ser intutivo si pensamos en que a mayor número de cotizantes, seguramente mayor será la canitidad de personas empleadas y con ello una mayor dinámica en la economía que incluyen los créditos. La siguiente figura muestra la relación de esta variable para cada cartera. 
 
 ```{r, echo=FALSE, message=FALSE, warning=FALSE, fig.cap="Carteras vs IMSS", fig.align='center', out.width="50%"}
 g1 <- datos_modelo %>% ggplot(aes(x=Fecha, y=scale(PyME))) + geom_line() +
@@ -878,12 +827,12 @@ min(abs(tabla_correlaciones$Corr_trans_HIP))
 
 # Modelado e implementación
 
-Ya hemos visto que el comportamiento de cada cartera es diferente, esto trae implicaciones al momento de proponer un modelo que ajuste nuestros datos. Si bien, nuestras creencias iniciales consideran el hecho de que cada variable disponible para ajustar cada uno de los modelos tiene un peso específico diferente, no podemos de manera a priori señalarlas y descartarlas, sin antes proponer un primer ajuste para cada caso que nos permita tomar las mejore decisiones y que nos lleve a generar un modelo adecuado para cada una de las carteras. 
+Ya hemos visto que el comportamiento de cada cartera es diferente, esto trae implicaciones al momento de proponer un modelo que ajuste nuestros datos. Si bien, nuestras creencias iniciales consideran el hecho de que cada variable disponible para ajustar cada uno de los modelos tiene un peso específico diferente, a priori no podemos señalarlas y descartarlas. Mejor optamos por proponer un primer ajuste para cada caso que nos permita tomar las mejores decisiones y que nos lleve a generar un modelo adecuado para cada una de las carteras. 
 
 
-### Modelo PyME 
+## Modelo PyME 
 
-Dada la transformación de variables considerada en la sección anterior para el caso PyMES habremos de plantear un modelo estático. Al ser únicamente variables numéricas la implementación es sencilla y relativamente fácil de interpretar. El planteamiento del modelo es el siguiente:
+Dada la transformación de variables considerada en la sección anterior, para el caso PyMES proponemos un modelo estático. Al ser únicamente variables numéricas la implementación es sencilla y relativamente fácil de interpretar. El planteamiento del modelo es el siguiente:
 
 \begin{equation}\label{estatico_pyme}
 Y_t = \alpha   + \beta_{1}Stockmarket_t  + \beta_{2}SP500_{t}+ ... + \beta_{29}PIB_{t} + \epsilon_t
@@ -893,9 +842,14 @@ donde $\epsilon_t \sim N(0,V^{-1})$,  con $i=0,1,2,3,...,n$
 
 El modelo plantea noramilidad en cualquier caso. Se consideran distribuciones iniciales no informativas tal que $\alpha ~ \sim N(0,0.001)$, $\beta_{i} ~ \sim N(0,0.001)$ y $V^{-1} \sim Ga(0.001,0.001)$. 
 
-La simulación del modelo considera 10,000 iteraciones con un periodo de calentmaiento de 10% y sin adelgazamiento. Dada la grán cantidad de parámetros, la siguiente figura muestra la convergencia para $\alpha$ y $\beta_1$. Poteriormente, habremos de mostrar la tabla de convergencia de cada parámetro. 
+La simulación del modelo considera 10,000 iteraciones con un periodo de calentmaiento de 10% y sin adelgazamiento. Dada la gran cantidad de parámetros, la siguiente figura muestra únicamente la convergencia para $\alpha$ y $\beta_1$. 
+Posteriormente, habremos de mostrar la tabla de diagnṕsitocos de convergencia de cada parámetro. 
 
-De manera adicional el modelo considera dos proyecciones, la primea proyeción será evaluar con el modelo los últimos 12 peridos donde se tiene la cartera observada con el fin de determinar el desempeño para un set de datos de prueba. La seguna proyección corresponde a un horizonte de 55 meses, que siguiedo los lineamientos del regulador es el número de periodo que idealmente deben estimarse con el modelo. Recordemos que contamos con información de las variables explivarivas hasta 55 periodos más por lo que hacer esto es posible. 
+Adicionalmente el modelo considera dos proyecciones: 
+- La primera será evaluar los últimos 12 periódos donde se tiene la cartera observada con el fin de determinar el desempeño para un conjunto de datos de prueba. 
+- La segunda corresponde a un horizonte de 55 meses, que siguiedo los lineamientos del regulador, es el número de periodo que idealmente deben estimarse con el modelo. 
+
+Recordemos que contamos con información de las variables explivarivas hasta 55 periodos más, de manera que es posible realizar la segunda proyección. 
 
 
 ```{r, include=FALSE}
@@ -1005,7 +959,7 @@ acf(z2)
 ```
 
 
-La convergencia de las cadenas es casi inmediata, note que no se observan problemas de autocorrelación. La siguiente tabla muestra el diágostico para cada parámetro y de forma adicional muestra la probabilidad acumulada de que el coeficiente tome el valor 0. 
+La convergencia de las cadenas es casi inmediata. Además, note que no hay problemas de autocorrelación. La siguiente tabla muestra el diagnóstico para cada parámetro así como la probabilidad acumulada de que el coeficiente tome el valor 0. 
 
 ```{r, echo=FALSE, message=FALSE, warning=FALSE}
 out.sum<-ej10.sim$BUGSoutput$summary
@@ -1031,13 +985,14 @@ pander(convergencia_df, style = 'rmarkdown')
 ```
 
 
-El número efectivo de simulaciones en cada caso es muy significativo mientras que en valor de $\hat R$ esta muy cercano a 1. Por otro lado, la tabla muesta que existen probabilidades significativas para algunos de los parámetros de que su valor sea 0. Considerando una probabilidad arriba de 20% de manera arbitraria, las variables que deberían ser descartadas son las que están asociadas a los parámetros $\beta_7$, $\beta_8$, $\beta_9$, $\beta_{14}$, $\beta_{15}$, $\beta_{19}$, $\beta_{22}$, $\beta_{23}$, $\beta_{24}$ y $\beta_{28}$. 
+El número efectivo de simulaciones en cada caso es muy significativo mientras que en valor de $\hat R$ esta muy cercano a 1 lo cual indica buena mezcla entre cadenas y adecuada exploración del soporte de la distribución posterior. Por otro lado, la tabla muesta que hay parámetros cuya probabilidad de estar en un intervalo que contiene a cero es significativa. Considerando una probabilidad mayor que 20%, establecida por nosotros, las variables que deberían ser descartadas son las que están asociadas a los parámetros $\beta_7$, $\beta_8$, $\beta_9$, $\beta_{14}$, $\beta_{15}$, $\beta_{19}$, $\beta_{22}$, $\beta_{23}$, $\beta_{24}$ y $\beta_{28}$. 
 
 Las variables relacionadas con estas $\beta's$ son tipo de cambio EURUSD, tasa CETES a 1 y 3 meses, tasa de los bonos soberanos a 10 años, tasa de fondeo de 1 día, tasa del tesoro de EUA a 6 meses y a 3, 5 y 10 años así como la tasa de referencia de BANXICO. 
 
 Resulta interesante observar el resto de variables, por ejemplo, en la misma tabla se observa que $\beta_3$ relacionada con la tasa de desempleo tiene una media positiva, lo cual significa que si la tasa de desempleo sube, la cartera de PyME se ve afectada de manera positiva, esto tiene sentido si pensamos que mucho emprendedores comienzan desempleados llegandose a convertir en perqueños empresarios. Lo mismo pasa con $\beta_4$ relacionada con las exportaciones no petroleras, muchas de estás exportaciones están relacionadas con pequeás y medinas empresas (ej. pequeños agriculotres) que venden su producto que puede ser exportado, esto puede favorecer el crecimiento de la cartera PyME cuando se recurre a prestamos para solverntar el negocio. 
 
-Por otro lado $\beta_5$ que esta asociada con el INPC muestra un valor promedio negativo, en general si esta variable sube se reduce la cantidad de bienes y servicios que la gente puede adquirir [4] lo que provoca que los créditos en general caigan y hace sentido que sea una variable que provoca la contracción de la cartera PyME. $\beta_6$ asociada al tipo de cambio presenta un valor medio positivo, aunque puede aprecer menos intuitiva la interpretación de este hecho, algo que es real es que un tipo de cambio alto puede provocar un aumento en los precios de la materia prima [5] lo cual induce a muchas empresas a recurrir a créditos que le perimtan solventar este tipo de obligaciones. 
+Por otro lado $\beta_5$ que esta asociada con el INPC muestra un valor promedio negativo. En general si esta variable aumenta su valor, se reduce la cantidad de bienes y servicios que la gente puede adquirir [4] lo que provoca que los créditos en general caigan y hace sentido que sea una variable que provoca la contracción de la cartera PyME. 
+El coeficiente $\beta_6$, asociado al tipo de cambio, presenta un valor medio positivo. Aunque puede este hecho es menos intuitivo, en la práctica se da pues un valor alto para el tipo de cambio puede provocar un aumento en los precios de la materia prima [5] lo cual induce a muchas empresas a recurrir a créditos que le perimtan solventar este tipo de obligaciones. 
 
 Vayamos a $\beta_{25}$, este el coeficiente con mayor peso y es positivo, su variable asociada es el número de trabajadres que cotizan al IMSS. Recordemos que las PyMES son un motor muy fuerte dento de la economía, muchas de estas empresas cotizan al IMSS lo cual quiere decir que muy probablemente por el contexto económico en el que vivimos una mayor cantidad de trabajadores que coticen significa una mayor cantidad de PyMES y por ende aumenta la posibilidad de que el valor de la cartera suba. 
 
@@ -1248,7 +1203,474 @@ out.yf_df %>% ggplot(aes(x=Fecha, y = y)) + geom_line() + theme_bw() +
 Si bien, la predicción para los siguientes periodos parece mostrar cierta estacionalodad note que los valores estimados hacen sentido con lo observado  a lo largo de la historia, es importante hacer enfásis en que este dato debe ser tratado con reserva pues no recomendamos de ninguna manera tomar estos valores como ciertos sin emabrgo, si tienen una alta probabilidad de suceder considerando los escenarios que proporciona el regulador y para fines de una primera estimación de capital el modelo es bastante aceptable. 
 
 
-### Modelo Hipotecario
+## Modelos para TDC
+
+### Regresión estática con todas las variables explicativas.
+
+Ahora nos centramos en modelar la cartera de tarjetas de crédito. Como hicimos en el modelo @\ref{eq:estatico_pyme}, incialmente consideramos
+un modelo estático incluyendo todas las variables. Más específicamente
+
+\begin{equation}\label{estático_TDC}
+TDC_t = \alpha   + \beta_{1}Stockmarket_t  + \beta_{2}SP500_{t}+ ... + \beta_{29}PIB_{t} + \epsilon_t
+\end{equation}
+
+donde $\epsilon_t \sim N(0,V^{-1})$,  con $t=0,1,2,3,...,n$
+
+Consideramos distribuciones iniciales no informativas para los parámetros: 
+$\alpha ~ \sim N(0,0.001)$, $\beta_{i0} ~ \sim N(0,0.001)$ y precisión $V^{-1} \sim Ga(0.001,0.001)$. 
+La simulación del modelo considera 
+
+- 10,000 iteraciones
+- Calentamiento de 1,000
+- No fue necesario adelgazar
+
+```{r echo=FALSE, warning=FALSE}
+load('../sims/simsTDC_estatico.RData')
+```
+
+A continuación se presentan los dianósticos numéricos de convergencia y estimaciones posteriores, usando pérdida cuadrática,
+para los parámetro de este primer modelo
+
+```{r, echo=FALSE}
+tdc.est<-tdc.est.sim
+out.sum<-tdc.est$BUGSoutput$summary
+out<-tdc.est$BUGSoutput$sims.list
+dic1 <- tdc.est.sim$BUGSoutput$DIC
+varnames <- rownames(out.sum)[1:30]
+
+# Resumen alpha
+out.sum.alpha<-out.sum[grep("alpha",rownames(out.sum)),c(1,3,7)]
+out.sum.alpha<-cbind(out.sum.alpha,apply(out$alpha,2,prob)) %>% as_data_frame()
+out.sum.alpha <- out.sum.alpha[1:1,]
+out.sum.alpha <- out.sum.alpha %>% mutate(Proba = V2, Media = out.sum.alpha) %>% select(Media, Proba)
+
+# Resumen betas
+out.sum.beta<-out.sum[grep("beta",rownames(out.sum)),c(1,3,7)]
+out.sum.beta<-cbind(out.sum.beta,apply(out$beta,2,prob)) %>% as_data_frame()
+out.sum.beta <- out.sum.beta %>% mutate(Proba = V4, Media = mean) %>% select(Media, Proba)
+
+# prueba hipotesis
+Probas <- rbind(out.sum.alpha, out.sum.beta)
+
+# Diagnositcos numericos de convergencia para los parametros del modelo TDC estatico
+convergencia_df_TDC_estatico <- tibble(parametro = c(sprintf("$\\alpha$"),sprintf("$\\beta_{%s}$", 1:29))) |> 
+mutate(as_tibble(out.sum[1:30,])) |> mutate(prueba.hipotesis=Probas$Proba)
+```
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+cap <- 'Estimaciones posteriores y diagnósticos de convergencia de los parámetros del modelo estático para la cartera TDC'
+convergencia_df_TDC_estatico |> select(-c('25%' ,'50%', '75%', 'n.eff'))|>
+fancy_table(caption=cap, format='pandoc')
+```
+
+
+Las variables que resultan significativamente distintas de cero a un nivel 
+de confianza del $10\%$ son IMSS ($\beta_{11}$) y CETES ($\beta_{25}$). Antes de ajustar otro 
+modelo que solo considere dichas variables presentamos un razonamiento en favor de incluirlas 
+al próximo modelo:
+
+- La asociación negativa entre la tasa de CETES a 12 meses, sugiere que a medida que la tasa de interés de los CETES aumenta, 
+la cartera de tarjetas de crédito disminuye. Es decir, una tasa de interés más alta puede desincentivar 
+a los consumidores a utilizar tarjetas de crédito y, en consecuencia, reducir la cartera de TDC.
+
+- El coeficiente $\beta_{25}$, asociado a los trabajadores que cotizan para el IMSS,
+tiene que ver con que a mayor número de trabajadores cotizantes en el IMSS, el mercado laboral es más estable 
+lo cual conlleva a una mayor capacidad de los individuos para cumplir con sus obligaciones financieras, consecuentemente un aumento 
+para la cartera de TDC. 
+
+
+A continuación presentamos el ajuste de este modelo
+
+```{r echo=FALSE}
+# resumen estimadores 
+out.sum <- tdc.est$BUGSoutput$summary
+
+# Intervalos del 95 de confianza para las predicciones
+intervalos_estatico_tdc <-out.sum[grep("yf",rownames(out.sum)),c(3,7)] |> as_tibble()
+names(intervalos_estatico_tdc) <- c('lower', 'upper')
+```
+
+```{r echo=FALSE}
+train_size <- nrow(train_data)
+test_size <- nrow(test_data) + nrow(datos_proyeccion)
+point_estimate_TDC <- out.sum[grep("yf1",rownames(out.sum)),c('mean')] |> as_tibble()
+pred_puntual_TDC_train <-  point_estimate_TDC  |> head(train_size)
+pred_puntual_TDC_test <- point_estimate_TDC  |> tail(test_size)
+
+predicciones_estatico_train <- tibble(fecha=datos_modelo$Fecha[1:169], TDC_train=scale(train_data$TDC)) |> 
+mutate(est.puntual=pred_puntual_TDC_train$value, intervalos_estatico_tdc[1:train_size,])
+
+# Une datos de prueba y lista de NAs para proyeccion
+test_and_proy <- c(as.vector(scale(test_data$TDC)), rep(NA,nrow(datos_proyeccion)))
+
+# fechas test 
+fechas_test <- datos_modelo$Fecha[170:181]
+# fechas a proyectar
+fechas_proyeccion <- seq((datos_modelo$Fecha[181]|>as.Date()), by = "month", length.out = 55)
+
+predicciones_estatico_test <- tibble(fecha=c(fechas_test, fechas_proyeccion), TDC=test_and_proy) |> 
+mutate(est.puntual=pred_puntual_TDC_test$value, tail(intervalos_estatico_tdc, test_size))
+
+```
+
+```{r echo=FALSE, message = FALSE, warning=FALSE, fig.align='center',fig.width=7, fig.height=3.5, fig.cap="Regresión estática para TDC con todas las variables : Conjunto de entrenamiento y validación (puntos azules y negros), serie inferida para cada conjunto en color negro y rojo respectivamente; y bandas de confianza al $95\\%$"}
+predicciones_estatico_train |> ggplot(aes(x = fecha, y = TDC_train)) +
+  geom_point(color='blue', shape=21) +
+  geom_line(aes(x=fecha, y = lower), linetype='dashed' , color = "salmon") +
+  geom_line(aes(x=fecha, y = upper), linetype='dashed' , color = "salmon") +  
+  geom_line(aes(x = fecha, y = est.puntual), linetype='dashed',color = "black") +
+  geom_point(data= predicciones_estatico_test|> slice(1:12), aes(x=fecha, y=TDC), color='black', shape=21) +
+  geom_line(data= predicciones_estatico_test|> slice(1:12), aes(x=fecha, y = lower), linetype='dashed' , col = "salmon") +
+  geom_line(data= predicciones_estatico_test|> slice(1:12) , aes(x=fecha, y = upper), linetype='dashed' , color = "salmon") +  
+  geom_line(data= predicciones_estatico_test|> slice(1:12), aes(x = fecha, y = est.puntual), linetype='dashed',color = "red") +
+  ylab('TDC') +
+  xlab('Fecha') +
+  theme_bw() +
+  sin_lineas 
+  #scale_x_continuous(breaks = seq(min(produccion$Año), max(produccion$Año) + m, by = 1)) +
+  #theme(axis.text.x = element_text(angle = 30, vjust = 0.5, hjust = 1))
+```
+
+Como podemos observar, el ajuste se puede mejorar. A pesar de ello, nos nos resulta de utilidad 
+para seleccionar las variables a incluir en el modelo de la siguiente subsección.
+
+\newpage 
+
+### Regresión estática con tasa de CETES e IMMS.
+
+La primer iteración para la consturcción de modelos de esta cartera nos permitió 
+decidir que ahora contemplaremos ajustar
+
+$$
+TDC_t = \beta_{1}\,\text{CETES12m}+ \beta_{2}\,\text{IMSS}+\epsilon_t
+$$
+
+con $\epsilon_t \sim N(0,V^{-1})$,  con $t=0,1,2,3,...,n$ e iniciales no informativas 
+en los parámetros $\alpha ~ \sim N(0,0.001)$, $\beta_{i0} ~ \sim N(0,0.001)$ 
+y precisión $V^{-1} \sim Ga(0.001,0.001)$.
+
+
+```{r echo=FALSE, warning=FALSE}
+load('../sims/TDC_estatico2.RData')
+```
+
+La siguiente tabla muestra que los diagnósticos numéricos de convergencia son satisfactorios.
+En particular se ha explorado bien el soporte de la distribución posterior ($\hat{R}<1.1$) y 
+el número efectivo de simulaciones representa el $100\%$ de las simualaciones 
+lo cual indica que todas
+pueden ser consideradas como independientes. En particular no hay problemas de autocorrelación y 
+podemos confiar en los estimadores Monte Carlo de la segunda columna.
+
+```{r, echo=FALSE}
+tdc.est<-tdc.est2.sim
+out.sum<-tdc.est$BUGSoutput$summary
+out<-tdc.est$BUGSoutput$sims.list
+dic2 <- tdc.est2.sim$BUGSoutput$DIC
+varnames <- rownames(out.sum)[1:3]
+
+# Resumen alpha
+out.sum.alpha<-out.sum[grep("alpha",rownames(out.sum)),c(1,3,7)]
+out.sum.alpha<-cbind(out.sum.alpha,apply(out$alpha,2,prob)) %>% as_data_frame()
+out.sum.alpha <- out.sum.alpha[1:1,]
+out.sum.alpha <- out.sum.alpha %>% mutate(Proba = V2, Media = out.sum.alpha) %>% select(Media, Proba)
+
+# Resumen betas
+out.sum.beta<-out.sum[grep("beta",rownames(out.sum)),c(1,3,7)]
+out.sum.beta<-cbind(out.sum.beta,apply(out$beta,2,prob)) %>% as_data_frame()
+out.sum.beta <- out.sum.beta %>% mutate(Proba = V4, Media = mean) %>% select(Media, Proba)
+
+# prueba hipotesis
+Probas <- rbind(out.sum.alpha, out.sum.beta)
+
+# Diagnositcos numericos de convergencia para los parametros del modelo TDC estatico
+convergencia_df_TDC_estatico2 <- tibble(parametro = c(sprintf("$\\alpha$"),sprintf("$\\beta_{%s}$", 1:2))) |> 
+mutate(as_tibble(out.sum[1:3,])) |> mutate(prueba.hipotesis=Probas$Proba)
+```
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+cap <- 'Estimaciones posteriores y diagnósticos de convergencia de los parámetros del 2do modelo estático para la cartera TDC'
+convergencia_df_TDC_estatico2 |> select(-c('25%' ,'50%', '75%', 'n.eff'))|>
+fancy_table(caption=cap, format='pandoc')
+```
+
+De acuerdo con las estimaciones posteriores, presentadas en la segunda columna de esta tabla. 
+Es importante mencionar que el interés de nuestro trabajo está en identificar aquellas variables que 
+pueden determinar los valores de cada cartera. En particular, no estamos interesados en cuantificar los cambios para cada cartera 
+pues, el alcance de estos modelos no va más allá de estudiar relaciones estadísticas (y no causales).
+
+Este modelo sigue siendo consistente con lo que obtuvimos para el anterior. 
+
+En conclusión, la interpretación sería que aunque la tasa de interés de los CETES tiene un 
+impacto negativo en la cartera de tarjetas de crédito, este efecto es contrarrestado en parte 
+por la presencia positiva de la variable IMSS, lo que indica la importancia de considerar múltiples 
+factores en la explicación de la variación en la cartera de TDC.
+
+```{r echo=FALSE}
+# resumen estimadores 
+out.sum <- tdc.est$BUGSoutput$summary
+
+# Intervalos del 95 de confianza para las predicciones
+intervalos_estatico_tdc <-out.sum[grep("yf",rownames(out.sum)),c(3,7)] |> as_tibble()
+names(intervalos_estatico_tdc) <- c('lower', 'upper')
+```
+
+```{r echo=FALSE}
+train_size <- nrow(train_data)
+test_size <- nrow(test_data) + nrow(datos_proyeccion)
+point_estimate_TDC <- out.sum[grep("yf1",rownames(out.sum)),c('mean')] |> as_tibble()
+pred_puntual_TDC_train <-  point_estimate_TDC  |> head(train_size)
+pred_puntual_TDC_test <- point_estimate_TDC  |> tail(test_size)
+
+predicciones_estatico2_train <- tibble(fecha=datos_modelo$Fecha[1:169], TDC_train=scale(train_data$TDC)) |> 
+mutate(est.puntual=pred_puntual_TDC_train$value, intervalos_estatico_tdc[1:train_size,])
+
+# Une datos de prueba y lista de NAs para proyeccion
+test_and_proy <- c(as.vector(scale(test_data$TDC)), rep(NA,nrow(datos_proyeccion)))
+
+# fechas test 
+fechas_test <- datos_modelo$Fecha[170:181]
+# fechas a proyectar
+fechas_proyeccion <- seq((datos_modelo$Fecha[181]|>as.Date()), by = "month", length.out = 55)
+
+predicciones_estatico2_test <- tibble(fecha=c(fechas_test, fechas_proyeccion), TDC=test_and_proy) |> 
+mutate(est.puntual=pred_puntual_TDC_test$value, tail(intervalos_estatico_tdc, test_size))
+
+```
+
+El ajuste para este modelo se resenta a continuación.
+
+```{r echo=FALSE, message = FALSE, warning=FALSE, fig.align='center',fig.width=7, fig.height=3.5, fig.cap="Regresión estática para TDC con CETES12m e IMMS como predictores : Conjunto de entrenamiento y validación (puntos azules y negros), serie inferida para cada conjunto en color negro y rojo respectivamente; y bandas de confianza al $95\\%$"}
+predicciones_estatico2_train |> ggplot(aes(x = fecha, y = TDC_train)) +
+  geom_point(color='blue', shape=21) +
+  geom_line(aes(x=fecha, y = lower), linetype='dashed' , color = "salmon") +
+  geom_line(aes(x=fecha, y = upper), linetype='dashed' , color = "salmon") +  
+  geom_line(aes(x = fecha, y = est.puntual), linetype='dashed',color = "black") +
+  geom_point(data= predicciones_estatico2_test|> slice(1:12), aes(x=fecha, y=TDC), color='black', shape=21) +
+  geom_line(data= predicciones_estatico2_test|> slice(1:12), aes(x=fecha, y = lower), linetype='dashed' , col = "salmon") +
+  geom_line(data= predicciones_estatico2_test|> slice(1:12) , aes(x=fecha, y = upper), linetype='dashed' , color = "salmon") +  
+  geom_line(data= predicciones_estatico2_test|> slice(1:12), aes(x = fecha, y = est.puntual), linetype='dashed',color = "red") +
+  ylab('TDC') +
+  xlab('Fecha') +
+  theme_bw() +
+  sin_lineas 
+  #scale_x_continuous(breaks = seq(min(produccion$Año), max(produccion$Año) + m, by = 1)) +
+  #theme(axis.text.x = element_text(angle = 30, vjust = 0.5, hjust = 1))
+```
+
+Confiamos en que este tambipen es un buen modelo pues 
+tanto en el conjunto de entrenamiento como en validación, los intervalos posteriores al $95\%$
+capturan el valor observado. Además este modelo también captura un comportamiento asociado
+estacionalidad.
+
+\newpage 
+
+### Regresión dinámica
+
+Finalmente nos ocupamos de implementar un modelo dinámico para ésta cartera.
+Este consiste en un modelo de regresión dinámico incluyendo nivel. Más precisamente
+el modelo es 
+
+\begin{equation*}
+\begin{aligned}
+TDC_t &= \alpha_t + \beta_{1,t}\text{CETES12m}_t + \beta_{2,t}\text{IMSS}_t\quad\text{ecuación de observación}
+\alpha_t = \alpha_{t-1} + \eta_t
+\end{alignes}
+\end{equation*}
+con $\epsilon\sim\text{N}(0,\tau_y)$ y $\eta_t\sim\text{N}(0, \tau_{\alpha})$ para $t=1,\dots, n$
+Además, asignamos iniciales no informativas para el nivel y coeficientes iniciales $\alpha_1, \beta_{i,1}\sim \text{N}(0, 0.001)$ con $i=1,2$ 
+y para las precisiones $\tau_y, \tau_{\alpha}\sim\text{Ga}(0.001, 0.001)$.
+
+Los parámetros para la simulación de este modelo en JAGS fueron 2 cadenas con
+- 50,000 iteraciones
+- Calentamiento de $n_{warm-up}=5,000$
+- Adelgazamiento de 5
+
+Como bien sabemos, los parámetros de este modelo son demasiados (al menos tantos como meses estudiados para el anáslis retrospectivo). 
+Por tal razón solo mostramos diagnósticos asociados a $\alpha_1,\beta_{1,1}, \beta_{2,1}$
+
+```{r echo=FALSE}
+# carga regresion dinamico
+load('../sims/TDC_reg_din.RData')
+```
+
+```{r, message=FALSE, warning=FALSE, echo=FALSE,fig.cap="Resumen de convergencia para $\\alpha_1$", fig.align='center', out.width="70%"}
+tdc.est<-tdc.reg_din.sim
+# DIC
+dic3 <- tdc.reg_din.sim$BUGSoutput$DIC
+# sumulaciones en formato de array
+out.a<-tdc.est$BUGSoutput$sims.array
+# simulaciones en formato data frame
+out.a_df <- as.data.frame(out.a)
+z1<-out.a[,1,2]
+z2<-out.a[,2,2]
+# RESUMEN GRAFICO
+par(mfrow=c(3,2))
+plot(z1,type="l",col="grey50")
+lines(z2,col="firebrick2")
+y1<-cumsum(z1)/(1:length(z1))
+y2<-cumsum(z2)/(1:length(z2))
+ymin<-min(y1,y2)
+ymax<-max(y1,y2)
+plot(y1,type="l",col="grey50",ylim=c(ymin,ymax))
+lines(y2,col="firebrick2",ylim=c(ymin,ymax))
+hist(z1,freq=FALSE,col="grey50", main = "Historgrama cadena 1 de" ~ alpha)
+hist(z2,freq=FALSE,col="firebrick2", main = "Historgrama cadena 2 de" ~ alpha)
+acf(z1)
+acf(z2)
+```
+
+```{r, message=FALSE, warning=FALSE, echo=FALSE,fig.cap="Resumen de convergencia para $\\beta_{1,1}$", fig.align='center', out.width="70%"}
+z1<-out.a[,1,237]
+z2<-out.a[,2,237]
+par(mfrow=c(3,2))
+plot(z1,type="l",col="grey50")
+lines(z2,col="firebrick2")
+y1<-cumsum(z1)/(1:length(z1))
+y2<-cumsum(z2)/(1:length(z2))
+ymin<-min(y1,y2)
+ymax<-max(y1,y2)
+plot(y1,type="l",col="grey50",ylim=c(ymin,ymax))
+lines(y2,col="firebrick2",ylim=c(ymin,ymax))
+hist(z1,freq=FALSE,col="grey50", main = "Historgrama cadena 1 de" ~ alpha)
+hist(z2,freq=FALSE,col="firebrick2", main = "Historgrama cadena 2 de" ~ alpha)
+acf(z1)
+acf(z2)
+```
+
+```{r, message=FALSE, warning=FALSE, echo=FALSE,fig.cap="Resumen de convergencia para $\\beta_{2,1}$", fig.align='center', out.width="70%"}
+z1<-out.a[,1,238]
+z2<-out.a[,2,238]
+par(mfrow=c(3,2))
+plot(z1,type="l",col="grey50")
+lines(z2,col="firebrick2")
+y1<-cumsum(z1)/(1:length(z1))
+y2<-cumsum(z2)/(1:length(z2))
+ymin<-min(y1,y2)
+ymax<-max(y1,y2)
+plot(y1,type="l",col="grey50",ylim=c(ymin,ymax))
+lines(y2,col="firebrick2",ylim=c(ymin,ymax))
+hist(z1,freq=FALSE,col="grey50", main = "Historgrama cadena 1 de" ~ alpha)
+hist(z2,freq=FALSE,col="firebrick2", main = "Historgrama cadena 2 de" ~ alpha)
+acf(z1)
+acf(z2)
+```
+
+En todos los casos, los promedios ergódicos convergen. Aunque para $\alpha$ podemos reducir 
+la autocorrelación entre muestras, estamos satisfechos con los diagnósticos.
+
+A continuación presentamos el ajuste de manera gráfica
+
+```{r echo=FALSE}
+# resumen estimadores 
+out.sum <- tdc.est$BUGSoutput$summary
+
+# Intervalos del 95 de confianza para las predicciones
+intervalos_dinamico_tdc <-out.sum[grep("yf",rownames(out.sum)),c(3,7)] |> as_tibble()
+names(intervalos_dinamico_tdc) <- c('lower', 'upper')
+```
+
+```{r echo=FALSE}
+train_size <- nrow(train_data)
+test_size <- nrow(test_data) + nrow(datos_proyeccion)
+point_estimate_TDC <- out.sum[grep("yf1",rownames(out.sum)),c('mean')] |> as_tibble()
+pred_puntual_TDC_train <-  point_estimate_TDC  |> head(train_size)
+pred_puntual_TDC_test <- point_estimate_TDC  |> tail(test_size)
+
+predicciones_dinamico_train <- tibble(fecha=datos_modelo$Fecha[1:169], TDC_train=scale(train_data$TDC)) |> 
+mutate(est.puntual=pred_puntual_TDC_train$value, intervalos_estatico_tdc[1:train_size,])
+
+# Une datos de prueba y lista de NAs para proyeccion
+test_and_proy <- c(as.vector(scale(test_data$TDC)), rep(NA,nrow(datos_proyeccion)))
+
+# fechas test 
+fechas_test <- datos_modelo$Fecha[170:181]
+# fechas a proyectar
+fechas_proyeccion <- seq((datos_modelo$Fecha[181]|>as.Date()), by = "month", length.out = 55)
+
+predicciones_dinamico_test <- tibble(fecha=c(fechas_test, fechas_proyeccion), TDC=test_and_proy) |> 
+mutate(est.puntual=pred_puntual_TDC_test$value, tail(intervalos_estatico_tdc, test_size))
+
+```
+
+```{r echo=FALSE, message = FALSE, warning=FALSE, fig.align='center',fig.width=7, fig.height=3.5, fig.cap="Regresión dinámica para TDC con CETES12m e IMMS como predictores : Conjunto de entrenamiento y validación (puntos azules y negros), serie inferida para cada conjunto en color negro y rojo respectivamente; y bandas de confianza al $95\\%$"}
+predicciones_dinamico_train |> ggplot(aes(x = fecha, y = TDC_train)) +
+  geom_point(color='blue', shape=21) +
+  geom_line(aes(x=fecha, y = lower), linetype='dashed' , color = "salmon") +
+  geom_line(aes(x=fecha, y = upper), linetype='dashed' , color = "salmon") +  
+  geom_line(aes(x = fecha, y = est.puntual), linetype='dashed',color = "black") +
+  geom_point(data= predicciones_dinamico_test|> slice(1:12), aes(x=fecha, y=TDC), color='black', shape=21) +
+  geom_line(data= predicciones_dinamico_test|> slice(1:12), aes(x=fecha, y = lower), linetype='dashed' , col = "salmon") +
+  geom_line(data= predicciones_dinamico_test|> slice(1:12) , aes(x=fecha, y = upper), linetype='dashed' , color = "salmon") +  
+  geom_line(data= predicciones_dinamico_test|> slice(1:12), aes(x = fecha, y = est.puntual), linetype='dashed',color = "red") +
+  ylab('TDC') +
+  xlab('Fecha') +
+  theme_bw() +
+  sin_lineas 
+  #scale_x_continuous(breaks = seq(min(produccion$Año), max(produccion$Año) + m, by = 1)) +
+  #theme(axis.text.x = element_text(angle = 30, vjust = 0.5, hjust = 1))
+```
+
+En comparación de los modelos de regresión anteriores, es notable que la incertidumbre del valor 
+verdadero para los datos transformados es mayor. Aunque seguimos capturando el comportamiento 
+oscilatorio de la serie, a contiuación presentamos una comparación de modelos y 
+efectivamente éste no  resultó ser la mejor opción.
+
+
+### Comparación de modelos 
+
+Si comparamos los DIC de cada modelo, como mostramos a continuación
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+modelos <- c('Estático contemplando todas las variables', 'Estático con variables significativas', 'Regresión dinámica con variables significativas')
+dics <- c(dic1, dic2, dic3)
+cap <- 'Comparación de modelos mediante sus criterios de información de devianza (DIC)'
+tibble(Modelo=modelos, DIC=dics) |> 
+fancy_table(caption=cap, format='pandoc')
+```
+
+Concluimos que de todos los modelos, el mejor es el de regresión estática incluyendo las variables CETES12m e IMSS. 
+Aunque puede existir mejores modelos, consideramos que vale la pena sacrificar complejidad 
+por interpretabilidad.
+
+### Proyecciones con mejor modelo
+
+En esta parte, nos ocupamos de hacer proyecciones a 55 meses como lo solicita el regulador.
+Como mencionamos en los modelos de cartera de PyMEs, hacer proyecciones a tan largo plazo 
+no es la mejor opcion.
+
+```{r echo=FALSE, message = FALSE, warning=FALSE, fig.align='center',fig.width=7, fig.height=3.5, fig.cap="Proyección de la cartera de TDC hasta 2026"}
+predicciones_dinamico_train |> ggplot(aes(x = fecha, y = TDC_train)) +
+  geom_point(color='blue', shape=21) +  
+  geom_line(aes(x=fecha, y = lower), linetype='dashed' , color = "salmon") +
+  geom_line(aes(x=fecha, y = upper), linetype='dashed' , color = "salmon") +  
+  geom_line(aes(x = fecha, y = est.puntual), linetype='dashed',color = "black") +
+  geom_point(data= predicciones_dinamico_test|> slice(1:12), aes(x=fecha, y=TDC), color='blue', shape=21) +
+  geom_line(data= predicciones_dinamico_test|> slice(1:12), aes(x = fecha, y = est.puntual), linetype='dashed',color = "black") +
+  geom_line(data= predicciones_dinamico_test|> slice(1:12), aes(x=fecha, y = lower), linetype='dashed' , col = "salmon") +
+  geom_line(data= predicciones_dinamico_test|> slice(1:12) , aes(x=fecha, y = upper), linetype='dashed' , color = "salmon") +  
+  geom_point(data= predicciones_dinamico_test|> slice(1:12), aes(x = fecha, y = est.puntual), color='blue', shape=21) + 
+  geom_line(data= predicciones_dinamico_test|> slice(13:67), aes(x = fecha, y = est.puntual), linetype='dashed',color = "red") + # PROYECCIÓN
+  geom_line(data= predicciones_dinamico_test|> slice(13:67), aes(x=fecha, y = lower), linetype='dashed' , col = "salmon") +
+  geom_line(data= predicciones_dinamico_test|> slice(13:67) , aes(x=fecha, y = upper), linetype='dashed' , color = "salmon") +  
+  ylab('TDC') +
+  xlab('Fecha') +
+  theme_bw() +
+  sin_lineas 
+  #scale_x_continuous(breaks = seq(min(produccion$Año), max(produccion$Año) + m, by = 1)) +
+  #theme(axis.text.x = element_text(angle = 30, vjust = 0.5, hjust = 1))
+```
+
+Se observa que los valores estimados son coherentes con las tendencias históricas observadas a lo largo del tiempo. 
+Sin embargo, es importante tener en cuenta que estos datos deben ser interpretados con precaución y no se recomienda 
+tomarlos como valores definitivos.
+
+Por lo tanto, si bien el modelo brinda una aproximación aceptable para una estimación preliminar de capital, 
+se recomienda utilizar estos valores con reserva y complementarlos con un análisis más detallado y una evaluación exhaustiva de los factores y circunstancias específicas del entorno financiero y regulatorio.
+
+
+\newpage 
+
+## Modelo Hipotecario
 
 Definiremos como partida inicial un modelo estático que nos permita vislumbrar las principales variables relacionadas al producto hipotecario. Se parte de la misma definición de la cartera PyME dada en [1].
 
@@ -1356,8 +1778,8 @@ acf(z1)
 acf(z2)
 ```
 
-Si observamos la convergencia de las cadenas podemos ver que se mezclan muy bien, al igual que la convergencia casi inmediata de los promedios ergódicos. También podemos ver que no presenta temas de autocorrelación. Lo siguiente será observar la tabla de autocorrelación. 
-
+Si observamos la convergencia de las cadenas podemos ver que se mezclan muy bien, al igual que la convergencia casi inmediata de los promedios ergódicos. Además, se puede apreciar que no presenta problemas de autocorrelación. 
+A continuación se presentan las estimaciones posteriores y diagnósticos de convergencia para cada parámetro.
 ```{r, echo=FALSE, message=FALSE, warning=FALSE}
 out.sum<-ej10.sim$BUGSoutput$summary
 varnames <- rownames(out.sum)[1:29]
@@ -1382,7 +1804,7 @@ pander(convergencia_df, style = 'rmarkdown', digits = 4)
 
 ```
 
-Al observar la tabla de estimaciones de las betas, podemos ver que en la mayoría de los casos el número efectivo de simulaciones es bastante alto, además de que el valor $\hat R$ esta muy cercano a 1, esto nos ayuda a saber que el modelo esta ajustando bien los valores. Sin embargo, considerando el intervalo de confianza al 95%, podemos ver que muchas de las betas contienen al cero, por lo cual descartaremos aquellas variables cuya probabilidad sea mayor a .10, dejando como resultado las variables: Tasa de Referencia de Banxico, Empleo IMSS, T-note a 10, 5 años y 2 años, así como las T-bill en todas sus periodicidades, tasa de referencia de USA, Tasa de bonos a 5 años, Tasa de cetes a 3 y 6 meses, tipo de cambio de USA. 
+Al observar la tabla de estimaciones de las $\beta$'s, podemos ver que en la mayoría de los casos el número efectivo de simulaciones es bastante alto, además de que el valor $\hat R$ esta muy cercano a 1, esto nos ayuda a saber que el modelo esta ajustando bien los valores. Sin embargo, considerando el intervalo de confianza al 95%, podemos ver que muchas de las betas contienen al cero, por lo cual descartaremos aquellas variables cuya probabilidad sea mayor a .10, dejando como resultado las variables: Tasa de Referencia de Banxico, Empleo IMSS, T-note a 10, 5 años y 2 años, así como las T-bill en todas sus periodicidades, tasa de referencia de USA, Tasa de bonos a 5 años, Tasa de cetes a 3 y 6 meses, tipo de cambio de USA. 
 
 
 ```{r, echo=FALSE, message=FALSE, warning=FALSE, fig.align='center', out.width="50%", fig.cap="Simulación modelos estimado vs valores observados"}
@@ -1491,7 +1913,7 @@ pander(convergencia_df, style = 'rmarkdown', digits = 4)
 
 
 
-Ahora bien, observemos los valores de las $\beta$’s, la primeras dos indican que tanto el tipo de cambio como la tasa de interés tienen una beta positiva y significativa en relación con la cartera hipotecaria, eso implicaría que un aumento en estas variables se asocia con un incremento en la cartera hipotecaria. Esto puede tener sentido en ciertos escenarios y contextos económicos.
+Ahora bien, observemos los valores de las $\beta$’s, la primeras dos indican que tanto el tipo de cambio como la tasa de interés tienen asociado un coeficiente positivo y significativo en relación con la cartera hipotecaria, eso implicaría que un aumento en estas variables se asocia con un incremento en la cartera hipotecaria. Esto puede tener sentido en ciertos escenarios y contextos económicos.
 
 1. Mayor demanda de crédito: Un aumento en el tipo de cambio y la tasa de interés en Estados Unidos podría estar relacionado con un fortalecimiento de la economía y mayores tasas de crecimiento. En este caso, los hogares y empresas podrían tener una mayor demanda de crédito para invertir en bienes raíces, lo que impulsaría la cartera hipotecaria.
 
