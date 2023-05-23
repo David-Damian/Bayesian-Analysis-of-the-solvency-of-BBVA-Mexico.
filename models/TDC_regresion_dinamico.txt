@@ -1,0 +1,36 @@
+# Modelo de regresion dinamico
+model
+{
+#Likelihood
+for (i in 1:n) {
+	y[i] ~ dnorm(mu[i],tau)
+	mu[i]<-alpha[i]+beta[1,i]*x11[i]+beta[2,i]*x25[i]
+	}
+#State eq.
+for (i in 2:(n+m)) {
+alpha[i] ~ dnorm(alpha[i-1],tau.a)
+for (j in 1:2) {
+	beta[j,i] ~ dnorm(beta[j,i-1],tau.b[j])
+	}
+	}
+#Priors 
+alpha[1] ~ dnorm(0,0.001)
+for (j in 1:2) { beta[j,1] ~ dnorm(0,0.001) }
+tau ~ dgamma(0.001,0.001)
+tau.a ~ dgamma(0.001,0.001)
+for (j in 1:2){
+	tau.b[j] ~ dgamma(0.001,0.001)
+}
+
+#Prediction 1
+for (i in 1:n) { yf1[i] ~ dnorm(mu[i],tau) }
+
+
+#Prediction 2
+for (i in (n+1):(n+m)) { 
+	yf1[i] ~ dnorm(mu[i],tau)
+	mu[i] <- alpha[i]+beta[1,i]*x11[i]+beta[2,i]*x25[i]
+}
+}
+
+
